@@ -17,3 +17,7 @@ func UserLoginHandler(c *gin.Context) { // POST
 		"message": "logging in",
 	})
 }
+
+func GetUserById(c *gin.Context) {
+	//return
+}

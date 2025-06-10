@@ -5,10 +5,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"BlobbyServer/handlers"
+	"BlobbyServer/config"
+	"BlobbyServer/pkg/handlers"
 )
 
 func main() {
+	config.LoadEnv()
+	port := config.GetEnv("PORT", "8080")
 	router := gin.Default()
 
 	api := router.Group("/api")
@@ -28,7 +31,7 @@ func main() {
 		api.POST("/events/free-time", handlers.EventGetFreeTime)
 	}
 
-	log.Println("Server running at localhost:" + "8080")
+	log.Println("Server running at localhost:" + port)
 
-	router.Run()
+	router.Run(":" + port)
 }
