@@ -1,19 +1,13 @@
 package repositories
 
 import (
+	"BlobbyServer/config"
 	"BlobbyServer/pkg/models"
-
-	"BlobbyServer/pkg/storage"
 )
 
 func MigrateAll() {
-	db, err := storage.NewConnection()
-	if err != nil {
-		panic("failed to connect database")
-	}
-
 	// Автомиграция - создание таблиц
-	err = db.AutoMigrate(
+	err := config.DB.AutoMigrate(
 		&models.User{},
 		&models.Group{},
 		&models.Event{},

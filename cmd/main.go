@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"BlobbyServer/config"
 	"BlobbyServer/pkg/handlers"
 	"BlobbyServer/pkg/repositories"
 )
@@ -13,6 +14,7 @@ import (
 func SetupRoutes(router *gin.Engine) {
 	api := router.Group("/api")
 	{
+
 		api.GET("/ping", handlers.PingHandler)
 		api.POST("/user/register", handlers.UserRegisterHandler)
 		api.POST("/user/login", handlers.UserLoginHandler)
@@ -24,6 +26,10 @@ func SetupRoutes(router *gin.Engine) {
 }
 
 func main() {
+	config.LoadEnv()
+	config.InitDB()
+
+	port := config.GetEnv("PORT", "8080")
 
 	migrate := flag.Bool("migrate", false, "Run database migrations") // go run cmd/main.go -migrate
 	flag.Parse()
@@ -35,15 +41,10 @@ func main() {
 		return
 	}
 
-	// db, err := storage.NewConnection() // idk where and how to connect to the db
-
-	// if err != nil {
-	// 	log.Fatal("could not loat the database")
-	// }
-
 	router := gin.Default()
 	SetupRoutes(router)
 	log.Println("Server running at localhost:" + "8080")
+	log.Println("Server running at localhost:" + port)
 
-	router.Run()
+	router.Run(":" + port)
 }
