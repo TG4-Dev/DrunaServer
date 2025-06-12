@@ -16,7 +16,7 @@ type Config struct {
 	SSLMode  string
 }
 
-func NewConnection(config *Config) (*gorm.DB, error) {
+func NewConnection(config Config) (*gorm.DB, error) {
 	dsn :=
 		fmt.Sprintf(
 			"host=%s port=%s password=%s user=%s dbname=%s sslmode=%s",
