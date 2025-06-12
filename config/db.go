@@ -10,11 +10,7 @@ import (
 )
 
 var DB *gorm.DB
-var config *storage.Config
-
-func declaredandnotused(db *gorm.DB) {
-	return
-}
+var config storage.Config
 
 func InitDB() {
 	config.Host = os.Getenv("DB_HOST")
@@ -24,8 +20,8 @@ func InitDB() {
 	config.DBName = os.Getenv("DB_NAME")
 	config.SSLMode = os.Getenv("DB_SSLMODE")
 
-	DB, err := storage.NewConnection(config)
-	declaredandnotused(DB) // declared and not used: DBcompilerUnusedVar
+	db, err := storage.NewConnection(config)
+	DB = db
 
 	if err != nil {
 		log.Fatal("Cannot open DB connection:", err)
