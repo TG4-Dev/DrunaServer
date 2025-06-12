@@ -1,8 +1,12 @@
 package models
 
+import (
+	"time"
+)
+
 type Group struct {
-	ID            int    `json:"groupID"`
-	OwnerID       string `json:"ownerID"`
-	Name          string `json:"name"`
-	ConfirmedTime string `json:confirmedTime`
+	ID            int       `gorm:"primary key;autoIncrement" json:"groupID"`
+	OwnerID       string    `gorm:"not null" json:"ownerID"`
+	Name          string    `gorm:"not null" json:"name"`
+	ConfirmedTime time.Time `json:"ConfirmedTime"`
 }

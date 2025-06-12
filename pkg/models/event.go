@@ -1,10 +1,15 @@
 package models
 
+import (
+	"time"
+)
+
 type Event struct {
-	ID        int    `json:"eventID"`
-	UserID    string `json:"userID"`
-	StartTime string `json:"startTime"`
-	EndTime   string `json:"endTime"`
-	Title     string `json:title`
-	Type      string `json:type`
+	ID        int       `gorm:"primary key;autoIncrement" json:"eventID"`
+	UserID    string    `gorm:"not null" json:"userID"`
+	User      User      `gorm:"foreignKey:UserID"`
+	StartTime time.Time `gorm:"not null" json:"startTime"`
+	EndTime   time.Time `gorm:"not null" json:"endTime"`
+	Title     string    `json:"title"`
+	Type      string    `json:"type"`
 }
