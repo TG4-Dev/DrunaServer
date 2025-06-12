@@ -11,11 +11,14 @@ import (
 
 func main() {
 	config.LoadEnv()
+	config.InitDB()
+
 	port := config.GetEnv("PORT", "8080")
 	router := gin.Default()
 
 	api := router.Group("/api")
 	{
+
 		api.GET("/ping", handlers.PingHandler)
 
 		api.POST("/user/register", handlers.UserRegisterHandler)
