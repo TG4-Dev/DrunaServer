@@ -14,10 +14,10 @@ import (
 func SetupRoutes(router *gin.Engine) {
 	api := router.Group("/api")
 	{
-
 		api.GET("/ping", handlers.PingHandler)
 		api.POST("/user/register", handlers.UserRegisterHandler)
-		api.POST("/user/login", handlers.UserLoginHandler)
+		api.POST("/user/login/requestJWT", handlers.UserLoginRequestJWTHandler)
+		api.POST("/user/login/checkJWT", handlers.UserLoginCheckJWTHandler)
 		api.GET("/friends", handlers.FriendListHandler)
 		api.POST("/friends/request", handlers.FriendRequestHandler)
 		api.POST("/events", handlers.EventAddHandler)
