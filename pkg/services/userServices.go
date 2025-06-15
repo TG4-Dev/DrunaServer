@@ -35,3 +35,21 @@ func (a *authService) Register(name, email, password string) (string, error) {
 
 	return utils.GenerateJWT(id)
 }
+
+func (a *authService) Login(email, password string) (string, error) {
+	results, err := repositories.UsersRepo.SearchByEmail(email)
+	if err != nil {
+		return "", err
+	}
+
+	if err := utils.ComparePassword(results.PasswordHash, password); err != nil {
+		return "", err
+	}
+
+	return utils.GenerateJWT(results.ID)
+}
+
+func (a *authService) CheckJWTService(jwt string) error {
+	err := utils.CheckJWT(jwt)
+	return err
+}

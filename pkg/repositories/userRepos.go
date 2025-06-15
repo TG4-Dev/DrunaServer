@@ -23,3 +23,14 @@ func (r *usersRepo) Create(user models.User) (int, error) {
     `, user.Name, user.Email, user.PasswordHash).Scan(&id).Error
 	return id, err
 }
+
+func (r *usersRepo) SearchByEmail(email string) (models.User, error) {
+	var results models.User
+	err := config.DB.Raw(`
+		SELECT id, password_hash 
+		FROM users 
+		WHERE email = ? 
+		LIMIT 1
+	`, email).Scan(&results).Error
+	return results, err
+}

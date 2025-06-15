@@ -30,7 +30,42 @@ func UserRegisterHandler(c *gin.Context) { //POST
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
 
-func UserLoginHandler(c *gin.Context) { // POST
+func UserLoginRequestJWTHandler(c *gin.Context) { // POST
+	type LoginInput struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
+	}
+
+	var input LoginInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+	token, err := services.AuthService.Login(input.Email, input.Password)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
+func UserLoginCheckJWTHandler(c *gin.Context) { // POST
+	type InputCheck struct {
+		JwtToken string `json:"token" binding:"required"`
+	}
+
+	var input InputCheck
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	if err := services.AuthService.CheckJWTService(input.JwtToken); err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "logging in",
 	})
