@@ -3,6 +3,7 @@ package repositories
 import (
 	"BlobbyServer/config"
 	"BlobbyServer/pkg/models"
+	"time"
 )
 
 var UsersRepo = usersRepo{}
@@ -33,4 +34,21 @@ func (r *usersRepo) SearchByEmail(email string) (models.User, error) {
 		LIMIT 1
 	`, email).Scan(&results).Error
 	return results, err
+}
+
+func (r *usersRepo) ExistsByUsername(username string) (int, error) {
+	var id int
+	err := config.DB.Raw(`
+		SELECT id FROM users WHERE username = ?
+	`, username).Scan(&id).Error
+	return id, err
+}
+
+func (r *usersRepo) CreateFriendRequest(userID int, friendID int) error {
+
+	err := config.DB.Raw(`
+		INSERT INTO friends (user_id, friend_id, status, request_at, confirmed_at)
+		VALUES (?, ?, ?, ?, NULL),
+	`, userID, friendID, "pending", time.Now()).Error
+	return err
 }
