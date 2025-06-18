@@ -14,3 +14,9 @@ type Friend struct {
 	ConfirmedAt time.Time `json:"confirmedAt"`
 	//PRIMARY KEY(user_id, friend_id)
 }
+
+type FriendInfo struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+}

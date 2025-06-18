@@ -1,6 +1,7 @@
 package services
 
 import (
+	"BlobbyServer/pkg/models"
 	"BlobbyServer/pkg/repositories"
 	"errors"
 )
@@ -21,4 +22,14 @@ func (f *friendService) FriendRequest(user_id int, username string) error {
 	}
 
 	return err
+}
+
+func (f *friendService) FriendList(user_id int) ([]models.FriendInfo, error) {
+	var friends []models.FriendInfo
+	friends, err := repositories.UsersRepo.GetFriendList(user_id)
+	if err != nil {
+		return []models.FriendInfo{}, errors.New("something gone wrong")
+	}
+
+	return friends, err
 }
