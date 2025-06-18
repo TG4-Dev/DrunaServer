@@ -11,6 +11,7 @@ import (
 func UserRegisterHandler(c *gin.Context) { //POST
 	type RegisterInput struct {
 		Name     string `json:"name" binding:"required"`
+		Username string `json:"username" binding:"required,min=3"`
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required,min=6"`
 	}
@@ -21,7 +22,7 @@ func UserRegisterHandler(c *gin.Context) { //POST
 		return
 	}
 
-	token, err := services.AuthService.Register(input.Name, input.Email, input.Password)
+	token, err := services.AuthService.Register(input.Name, input.Username, input.Email, input.Password)
 	if err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return

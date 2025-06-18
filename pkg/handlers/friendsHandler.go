@@ -18,7 +18,7 @@ func FriendRequestHandler(c *gin.Context) { //POST
 
 	type FriendRequest struct {
 		SourceID int    `json:"SourceID" binding:"required"`
-		Username string `json:"username" binding:"required"`
+		Username string `json:"username" binding:"required"` // Destination
 	}
 
 	var input FriendRequest
