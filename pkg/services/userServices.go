@@ -11,7 +11,7 @@ var AuthService = authService{}
 
 type authService struct{}
 
-func (a *authService) Register(name, email, password string) (string, error) {
+func (a *authService) Register(name, username, email, password string) (string, error) {
 	exists, _ := repositories.UsersRepo.ExistsByEmail(email)
 	if exists {
 		return "", errors.New("user already exists")
@@ -24,6 +24,7 @@ func (a *authService) Register(name, email, password string) (string, error) {
 
 	user := models.User{
 		Name:         name,
+		Username:     username,
 		Email:        email,
 		PasswordHash: hash,
 	}
