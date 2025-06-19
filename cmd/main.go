@@ -1,50 +1,54 @@
 package main
 
 import (
-	"flag"
-	"log"
+	druna "druna_server"
+	"druna_server/pkg/handler"
+	"druna_server/pkg/repository"
+	"druna_server/pkg/service"
+	"os"
 
-	"github.com/gin-gonic/gin"
-
-	"BlobbyServer/config"
-	"BlobbyServer/pkg/handlers"
-	"BlobbyServer/pkg/repositories"
+	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
-func SetupRoutes(router *gin.Engine) {
-	api := router.Group("/api")
-	{
-		api.GET("/ping", handlers.PingHandler)
-		api.POST("/user/register", handlers.UserRegisterHandler)
-		api.POST("/user/login/requestJWT", handlers.UserLoginRequestJWTHandler)
-		api.POST("/user/login/checkJWT", handlers.UserLoginCheckJWTHandler)
-		api.GET("/friends", handlers.FriendListHandler)
-		api.POST("/friends/request", handlers.FriendRequestHandler)
-		api.POST("/events", handlers.EventAddHandler)
-		api.POST("/events/free-time", handlers.EventGetFreeTime)
+func main() {
+	logrus.SetFormatter(new(logrus.JSONFormatter))
+
+	if err := initConfig(); err != nil {
+		logrus.Fatalf("Error initializing config configs: %s", err)
+	}
+
+	if err := godotenv.Load(); err != nil {
+		logrus.Fatalf("Error loading dotenv vars: %s")
+	}
+
+	db, err := repository.NewPostgresDB(repository.Config{
+		Host:     viper.GetString("db.host"),
+		Port:     viper.GetString("db.port"),
+		Username: viper.GetString("db.username"),
+		DBName:   viper.GetString("db.dbname"),
+		SSLMode:  viper.GetString("db.sslmode"),
+		Password: os.Getenv("DB_PASSWORD"),
+	})
+
+	if err != nil {
+		logrus.Fatalf("Failed to init DB: %s", err.Error())
+	}
+
+	repos := repository.NewRepository(db)
+	services := service.NewService(repos)
+	handlers := handler.NewHandler(services)
+
+	srv := new(druna.Server)
+	if err := srv.Run(viper.GetString("port"), handlers.InitRoutes()); err != nil {
+		logrus.Fatalf("Error occured while running http server: %s", err)
 	}
 }
 
-func main() {
-	config.LoadEnv()
-	config.InitDB()
-
-	port := config.GetEnv("PORT", "8080")
-
-	migrate := flag.Bool("migrate", false, "Run database migrations") // go run cmd/main.go -migrate
-	flag.Parse()
-
-	if *migrate {
-		log.Println("Running database migrations...")
-		repositories.MigrateAll()
-		log.Println("Migrations completed.")
-		return
-	}
-
-	router := gin.Default()
-	SetupRoutes(router)
-	log.Println("Server running at localhost:" + "8080")
-	log.Println("Server running at localhost:" + port)
-
-	router.Run(":" + port)
+func initConfig() error {
+	viper.AddConfigPath("configs")
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	return viper.ReadInConfig()
 }
