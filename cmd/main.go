@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	druna "druna_server"
 	"druna_server/pkg/handler"
 	"druna_server/pkg/repository"
 	"druna_server/pkg/service"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
@@ -41,8 +44,25 @@ func main() {
 	handlers := handler.NewHandler(services)
 
 	srv := new(druna.Server)
-	if err := srv.Run(viper.GetString("port"), handlers.InitRoutes()); err != nil {
-		logrus.Fatalf("Error occured while running http server: %s", err)
+
+	go func() {
+		if err := srv.Run(viper.GetString("port"), handlers.InitRoutes()); err != nil {
+			logrus.Fatalf("Error occured while running http server: %s", err)
+		}
+	}()
+
+	logrus.Println("DrunaServer started succesfully")
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	<-quit
+
+	logrus.Println("DrunaServer shutting down")
+	if err := srv.Shutdown(context.Background()); err != nil {
+		logrus.Errorf("error occured on server shutdown")
+	}
+	if err := db.Close(); err != nil {
+		logrus.Errorf("error occured on db closing")
 	}
 }
 
