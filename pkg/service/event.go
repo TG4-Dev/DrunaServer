@@ -1,0 +1,18 @@
+package service
+
+import (
+	"druna_server/pkg/model"
+	"druna_server/pkg/repository"
+)
+
+type EventService struct {
+	repo repository.Event
+}
+
+func NewEventService(repo repository.Event) *EventService {
+	return &EventService{repo: repo}
+}
+
+func (s *EventService) CreateEvent(event model.Event) (int, error) {
+	return s.repo.CreateEvent(event)
+}

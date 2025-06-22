@@ -16,6 +16,7 @@ type User interface {
 }
 
 type Event interface {
+	CreateEvent(user model.Event) (int, error)
 }
 
 type Friendship interface {
@@ -35,5 +36,6 @@ type Repository struct {
 func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{
 		Authorization: NewAuthPostgres(db),
+		Event:         NewEventPostgres(db),
 	}
 }

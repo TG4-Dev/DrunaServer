@@ -15,6 +15,7 @@ type User interface {
 }
 
 type Event interface {
+	CreateEvent(event model.Event) (int, error)
 }
 
 type Friendship interface {
@@ -34,5 +35,6 @@ type Service struct {
 func NewService(repos *repository.Repository) *Service {
 	return &Service{
 		Authorization: NewAuthService(repos.Authorization),
+		Event:         NewEventService(repos.Event),
 	}
 }

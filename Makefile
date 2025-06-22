@@ -16,10 +16,10 @@ migrate-up:
 	docker run --network=drunaserver_druna-net --rm \
 		-v ${PWD}/migrations:/migrations \
 		migrate/migrate \
-		-path=/migrations -database "postgres://postgres:qwerty@db:22000/druna_db?sslmode=disable" up
+		-path=/migrations -database "postgres://postgres:qwerty@db:22001/postgres?sslmode=disable" up
 
 migrate-down:
 	docker run --network=drunaserver_druna-net --rm \
 		-v ${PWD}/migrations:/migrations \
 		migrate/migrate \
-		-path=/migrations -database "postgres://postgres:postgres@db:5432/druna_db?sslmode=disable" down
+		-path=/migrations -database "postgres://postgres:qwerty@db:22001/postgres?sslmode=disable" down
