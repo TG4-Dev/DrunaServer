@@ -50,4 +50,31 @@ func (h *Handler) addEvent(c *gin.Context) {
 }
 
 func (h *Handler) deleteEvent(c *gin.Context) {
+	userIDInterface, ok := c.Get(userCtx)
+	if !ok {
+		NewErrorResponse(c, http.StatusUnauthorized, "user id not found")
+		return
+	}
+	userID, ok := userIDInterface.(int)
+	if !ok {
+		NewErrorResponse(c, http.StatusInternalServerError, "user id type is invalid")
+		return
+	}
+
+	eventIDParam := c.Param("id")
+	eventID, err := strconv.Atoi(eventIDParam)
+	if err != nil {
+		NewErrorResponse(c, http.StatusBadRequest, "invalid event id")
+		return
+	}
+
+	err = h.services.Event.DeleteEvent(userID, eventID)
+	if err != nil {
+		NewErrorResponse(c, http.StatusForbidden, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "event deleted",
+	})
 }

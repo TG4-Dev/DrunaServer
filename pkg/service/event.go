@@ -16,3 +16,7 @@ func NewEventService(repo repository.Event) *EventService {
 func (s *EventService) CreateEvent(event model.Event) (int, error) {
 	return s.repo.CreateEvent(event)
 }
+
+func (s *EventService) DeleteEvent(userID, eventID int) error {
+	return s.repo.DeleteEvent(userID, eventID)
+}

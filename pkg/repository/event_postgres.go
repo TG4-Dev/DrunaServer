@@ -2,6 +2,7 @@ package repository
 
 import (
 	"druna_server/pkg/model"
+	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
@@ -29,4 +30,22 @@ func (r *EventPostgres) CreateEvent(event model.Event) (int, error) {
 		return 0, err
 	}
 	return id, nil
+}
+
+func (r *EventPostgres) DeleteEvent(userID, eventID int) error {
+	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1 AND user_id = $2", eventsTable)
+	result, err := r.db.Exec(query, eventID, userID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return errors.New("event not found or you are not the owner")
+	}
+	return nil
 }
