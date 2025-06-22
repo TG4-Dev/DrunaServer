@@ -35,6 +35,8 @@ func (h *Handler) InitRoutes() *gin.Engine {
 		{
 			events.POST("/list", h.getEventList)
 			events.POST("/free-time", h.getFreeTime)
+			events.POST("/add-event", h.addEvent)
+			events.DELETE("/:id", h.deleteEvent)
 		}
 	}
 	return router
