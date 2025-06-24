@@ -23,6 +23,7 @@ type Event interface {
 type Friendship interface {
 	SendFriendRequest(userID int, username string) error
 	AcceptFriendRequest(userID int, username string) error
+	RejectFriendRequest(userID int, username string) error
 	FriendList(userID int) ([]model.FriendInfo, error)
 	FriendRequestList(userID int) ([]model.FriendInfo, error)
 	DeleteFriend(userID int, username string) error
