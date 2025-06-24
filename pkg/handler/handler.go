@@ -36,10 +36,11 @@ func (h *Handler) InitRoutes() *gin.Engine {
 
 		events := api.Group("/events")
 		{
-			events.POST("/list", h.getEventList)
-			events.POST("/free-time", h.getFreeTime)
-			events.POST("/add-event", h.addEvent)
+			events.GET("/", h.getEventList)
+			events.POST("/", h.addEvent)
 			events.DELETE("/:id", h.deleteEvent)
+
+			events.POST("/free-time", h.getFreeTime)
 		}
 	}
 	return router

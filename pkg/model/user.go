@@ -6,9 +6,9 @@ type User struct {
 	Username     string        `json:"username" binding:"required"`
 	Email        string        `json:"email" binding:"required"`
 	PasswordHash string        `json:"passwordHash" binding:"required"`
-	AvatarUrl    string        `json:"avatarURL"`
-	Events       []Event       `gorm:"foreignKey:UserID"`
-	OwnedGroups  []Group       `gorm:"foreignKey:OwnerID"`
-	GroupMembers []GroupMember `gorm:"foreignKey:UserID"`
-	Friends      []Friend      `gorm:"foreignKey:UserID"`
+	AvatarURL    string        `json:"avatarURL"`
+	Events       []Event       `json:"events"`
+	OwnedGroups  []Group       `json:"ownedGroups"`
+	GroupMembers []GroupMember `json:"groupMembers"`
+	Friends      []Friend      `json:"friends"`
 }
