@@ -20,8 +20,11 @@ type Event interface {
 }
 
 type Friendship interface {
-	FriendRequest(userID int, username string) error
+	SendFriendRequest(userID int, username string) error
+	AcceptFriendRequest(userID int, username string) error
 	FriendList(userID int) ([]model.FriendInfo, error)
+	FriendRequestList(userID int) ([]model.FriendInfo, error)
+	DeleteFriend(userID int, username string) error
 }
 
 type Group interface {

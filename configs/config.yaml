@@ -2,7 +2,7 @@ port: "22000"
 
 db:
   username: "postgres"
-  host: "db"
+  host: "localhost"
   port: "5432"
-  dbname: "druna_db"
+  dbname: "postgres"
   sslmode: "disable"
