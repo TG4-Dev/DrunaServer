@@ -23,7 +23,7 @@ func main() {
 	}
 
 	if err := godotenv.Load(); err != nil {
-		logrus.Fatalf("Error loading dotenv vars: %s")
+		logrus.Fatalf("Error loading dotenv vars: %s", err)
 	}
 
 	db, err := repository.NewPostgresDB(repository.Config{

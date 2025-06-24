@@ -20,6 +20,8 @@ type Event interface {
 }
 
 type Friendship interface {
+	FriendRequest(userID int, username string) error
+	FriendList(userID int) ([]model.FriendInfo, error)
 }
 
 type Group interface {
@@ -37,5 +39,6 @@ func NewService(repos *repository.Repository) *Service {
 	return &Service{
 		Authorization: NewAuthService(repos.Authorization),
 		Event:         NewEventService(repos.Event),
+		Friendship:    NewFriendshipService(repos.Friendship),
 	}
 }

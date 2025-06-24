@@ -21,6 +21,9 @@ type Event interface {
 }
 
 type Friendship interface {
+	CreateFriendRequest(userID, friendID int) error
+	ExistsByUsername(username string) (int, error)
+	GetFriendList(userID int) ([]model.FriendInfo, error)
 }
 
 type Group interface {
@@ -38,5 +41,6 @@ func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{
 		Authorization: NewAuthPostgres(db),
 		Event:         NewEventPostgres(db),
+		Friendship:    NewFriendShipPostgres(db),
 	}
 }
