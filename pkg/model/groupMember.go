@@ -5,10 +5,10 @@ import (
 )
 
 type GroupMember struct {
-	GroupID       int       `gorm:"not null" json:"eventID"`
-	UserID        string    `gorm:"not null" json:"userID"`
-	ConfirmedTime time.Time `json:"ConfirmedTime"`
-	Group         Group     `gorm:"foreignKey:GroupID"`
-	User          User      `gorm:"foreignKey:UserID"`
-	//PRIMARY KEY(groupID, userID)
+	GroupID       int       `json:"groupID" binding:"required"`
+	UserID        int       `json:"userID" binding:"required"`
+	ConfirmedTime time.Time `json:"confirmedTime"`
+	Group         Group     `json:"group,omitempty"`
+	User          User      `json:"user,omitempty"`
+	// PRIMARY KEY(groupID, userID)
 }
