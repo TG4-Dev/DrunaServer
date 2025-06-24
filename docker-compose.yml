@@ -21,7 +21,7 @@ services:
     depends_on:
       - db
     ports:
-      - "8080:8080"
+      - "22000:22000"
     environment:
       DB_PASSWORD: postgres
     volumes:
