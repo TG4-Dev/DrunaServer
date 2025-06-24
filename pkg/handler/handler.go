@@ -28,7 +28,10 @@ func (h *Handler) InitRoutes() *gin.Engine {
 		friends := api.Group("/friends")
 		{
 			friends.GET("/list", h.getFriendList)
+			friends.GET("/request-list", h.getFriendRequestList)
 			friends.POST("/request", h.sendFriendRequest)
+			friends.POST("/accept", h.acceptFriendRequest)
+			friends.DELETE("/", h.deleteFriend)
 		}
 
 		events := api.Group("/events")

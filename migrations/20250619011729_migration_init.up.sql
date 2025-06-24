@@ -29,7 +29,7 @@ CREATE TABLE events (
 CREATE TABLE friends (
     user_id INT NOT NULL,
     friend_id INT NOT NULL,
-    status VARCHAR(50) NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'accepted', 'rejected')),
     request_at TIMESTAMP NOT NULL,
     confirmed_at TIMESTAMP,
     
@@ -43,7 +43,10 @@ CREATE TABLE friends (
     CONSTRAINT fk_friend_friend
         FOREIGN KEY (friend_id) 
         REFERENCES users(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    
+    -- Проверяет уникальность записи user_id, friend_id (однонаправленная уникальность)
+    CONSTRAINT unique_friendship UNIQUE (user_id, friend_id)
 );
 
 CREATE TABLE groups (
