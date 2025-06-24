@@ -56,6 +56,19 @@ func (r *FriendShipPostgres) AcceptFriendRequest(userID int, friendID int) error
 	return nil
 }
 
+func (r *FriendShipPostgres) RejectFriendRequest(userID int, friendID int) error {
+	var id int
+	query := fmt.Sprintf("UPDATE %s SET status = 'rejected' WHERE friend_id = $1 AND user_id = $2 RETURNING friend_id", friendsTable)
+
+	row := r.db.QueryRow(query,
+		userID,
+		friendID)
+	if err := row.Scan(&id); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (r *FriendShipPostgres) GetFriendList(userID int) ([]model.FriendInfo, error) {
 	var friends []model.FriendInfo
 

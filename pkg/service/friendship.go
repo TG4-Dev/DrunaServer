@@ -41,6 +41,20 @@ func (s *FriendshipService) AcceptFriendRequest(userID int, username string) err
 	return err
 }
 
+func (s *FriendshipService) RejectFriendRequest(userID int, username string) error {
+	friendID, err := s.repo.ExistsByUsername(username)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.RejectFriendRequest(userID, friendID)
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
 func (s *FriendshipService) FriendList(userID int) ([]model.FriendInfo, error) {
 	var friends []model.FriendInfo
 	friends, err := s.repo.GetFriendList(userID)
