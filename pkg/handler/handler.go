@@ -31,6 +31,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 			friends.GET("/request-list", h.getFriendRequestList)
 			friends.POST("/request", h.sendFriendRequest)
 			friends.POST("/accept", h.acceptFriendRequest)
+			friends.POST("/reject", h.rejectFriendRequest)
 			friends.DELETE("/", h.deleteFriend)
 		}
 

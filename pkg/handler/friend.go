@@ -105,6 +105,22 @@ func (h *Handler) acceptFriendRequest(c *gin.Context) {
 }
 
 func (h *Handler) rejectFriendRequest(c *gin.Context) {
+	type FriendRequest struct {
+		SourceID int    `json:"SourceID" binding:"required"`
+		Username string `json:"username" binding:"required"`
+	}
+
+	var input FriendRequest
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+		return
+	}
+
+	err := h.services.Friendship.RejectFriendRequest(input.SourceID, input.Username)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "friend request rejected",
