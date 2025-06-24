@@ -5,8 +5,8 @@ import (
 )
 
 type Group struct {
-	ID            int       `gorm:"primary key;autoIncrement" json:"groupID"`
-	OwnerID       string    `gorm:"not null" json:"ownerID"`
-	Name          string    `gorm:"not null" json:"name"`
+	ID            int       `json:"groupID"`
+	OwnerID       string    `json:"ownerID"`
+	Name          string    `json:"name"`
 	ConfirmedTime time.Time `json:"ConfirmedTime"`
 }

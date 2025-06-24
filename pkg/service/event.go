@@ -20,3 +20,7 @@ func (s *EventService) CreateEvent(event model.Event) (int, error) {
 func (s *EventService) DeleteEvent(userID, eventID int) error {
 	return s.repo.DeleteEvent(userID, eventID)
 }
+
+func (s *EventService) GetEventList(userID int) ([]model.Event, error) {
+	return s.repo.GetEventList(userID)
+}

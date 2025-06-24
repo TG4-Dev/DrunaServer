@@ -5,12 +5,12 @@ import (
 )
 
 type Friend struct {
-	UserID      int       `gorm:"not null" json:"userID"`
-	FriendID    int       `gorm:"not null" json:"friendID"`
-	User        User      `gorm:"foreignKey:UserID"`
-	Friend      User      `gorm:"foreignKey:FriendID"`
-	Status      string    `gorm:"not null" json:"status"`
-	RequestAt   time.Time `gorm:"not null" json:"requestAt"`
+	UserID      int       `json:"userID"`
+	FriendID    int       `json:"friendID"`
+	User        User      `json:"user"`
+	Friend      User      `json:"friend"`
+	Status      string    `json:"status"`
+	RequestAt   time.Time `json:"requestAt"`
 	ConfirmedAt time.Time `json:"confirmedAt"`
 	//PRIMARY KEY(user_id, friend_id)
 }
