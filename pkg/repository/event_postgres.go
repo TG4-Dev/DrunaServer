@@ -49,3 +49,23 @@ func (r *EventPostgres) DeleteEvent(userID, eventID int) error {
 	}
 	return nil
 }
+
+func (r *EventPostgres) GetEventList(userID int) ([]model.Event, error) {
+	query := fmt.Sprintf("SELECT id, title, start_time, end_time, type FROM %s WHERE user_id = $1", eventsTable)
+	rows, err := r.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var events []model.Event
+	for rows.Next() {
+		var tmp model.Event
+		if err := rows.Scan(&tmp.ID, &tmp.Title, &tmp.StartTime, &tmp.EndTime, &tmp.Type); err != nil {
+			return nil, err
+		}
+		events = append(events, tmp)
+	}
+	return events, nil
+}

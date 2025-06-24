@@ -18,6 +18,7 @@ type User interface {
 type Event interface {
 	CreateEvent(user model.Event) (int, error)
 	DeleteEvent(userID, eventID int) error
+	GetEventList(userID int) ([]model.Event, error)
 }
 
 type Friendship interface {
