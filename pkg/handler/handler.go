@@ -7,9 +7,7 @@ import (
 
 	_ "druna_server/docs"
 
-	_ "github.com/swaggo/files"
 	swaggerFiles "github.com/swaggo/files"
-	_ "github.com/swaggo/gin-swagger"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
 

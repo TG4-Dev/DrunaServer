@@ -8,6 +8,178 @@
     },
     "host": "localhost:8000",
     "paths": {
+        "/api/events": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Get current user's event list",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Get event List",
+                "operationId": "get-events",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.EventDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "default": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/events/": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Create event",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Delete Event",
+                "operationId": "delete-event",
+                "parameters": [
+                    {
+                        "description": "list info",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.DeleteEventDoc"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/model.AddEventDoc"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "default": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/sign-in": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "SignIn",
+                "operationId": "sign in",
+                "parameters": [
+                    {
+                        "description": "account info",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/model.SignInDoc"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    },
+                    "default": {
+                        "description": "",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/sign-up": {
             "post": {
                 "consumes": [
@@ -28,7 +200,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/model.User"
+                            "$ref": "#/definitions/model.SignUpDoc"
                         }
                     }
                 ],
@@ -76,7 +248,23 @@
                 }
             }
         },
-        "model.Event": {
+        "model.AddEventDoc": {
+            "type": "object",
+            "properties": {
+                "Id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.DeleteEventDoc": {
+            "type": "object",
+            "properties": {
+                "eventID": {
+                    "type": "integer"
+                }
+            }
+        },
+        "model.EventDoc": {
             "type": "object",
             "required": [
                 "endTime",
@@ -104,117 +292,25 @@
                 }
             }
         },
-        "model.Friend": {
+        "model.SignInDoc": {
             "type": "object",
             "properties": {
-                "confirmedAt": {
+                "passwordHash": {
                     "type": "string"
                 },
-                "friend": {
-                    "$ref": "#/definitions/model.User"
-                },
-                "friendID": {
-                    "type": "integer"
-                },
-                "requestAt": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/model.User"
-                },
-                "userID": {
-                    "type": "integer"
-                }
-            }
-        },
-        "model.Group": {
-            "type": "object",
-            "properties": {
-                "ConfirmedTime": {
-                    "type": "string"
-                },
-                "groupID": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "ownerID": {
+                "username": {
                     "type": "string"
                 }
             }
         },
-        "model.GroupMember": {
+        "model.SignUpDoc": {
             "type": "object",
-            "required": [
-                "groupID",
-                "userID"
-            ],
             "properties": {
-                "confirmedTime": {
-                    "type": "string"
-                },
-                "group": {
-                    "$ref": "#/definitions/model.Group"
-                },
-                "groupID": {
-                    "type": "integer"
-                },
-                "user": {
-                    "$ref": "#/definitions/model.User"
-                },
-                "userID": {
-                    "type": "integer"
-                }
-            }
-        },
-        "model.User": {
-            "type": "object",
-            "required": [
-                "email",
-                "name",
-                "passwordHash",
-                "username"
-            ],
-            "properties": {
-                "avatarURL": {
-                    "type": "string"
-                },
                 "email": {
                     "type": "string"
                 },
-                "events": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.Event"
-                    }
-                },
-                "friends": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.Friend"
-                    }
-                },
-                "groupMembers": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.GroupMember"
-                    }
-                },
-                "id": {
-                    "type": "integer"
-                },
                 "name": {
                     "type": "string"
-                },
-                "ownedGroups": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/model.Group"
-                    }
                 },
                 "passwordHash": {
                     "type": "string"

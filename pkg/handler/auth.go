@@ -13,7 +13,7 @@ import (
 // @ID create-account
 // @Accept json
 // @Produce json
-// @Param input body model.User true "account info"
+// @Param input body model.SignUpDoc true "account info"
 // @Success 200 {integer} integer 1
 // @Failure 404 {object} handler.ErrorResponse
 // @Failure 400 {object} handler.ErrorResponse
@@ -44,6 +44,19 @@ type signInInput struct {
 	PasswordHash string `json:"passwordHash" binding:"required"`
 }
 
+// @Summary SignIn
+// @tags Auth
+// @Descrition sign in
+// @ID sign in
+// @Accept json
+// @Produce json
+// @Param input body model.SignInDoc true "account info"
+// @Success 200 {integer} integer 1
+// @Failure 404 {object} handler.ErrorResponse
+// @Failure 400 {object} handler.ErrorResponse
+// @Failure 500 {object} handler.ErrorResponse
+// @Failure default {object} handler.ErrorResponse
+// @Router /auth/sign-in [post]
 func (h *Handler) signIn(c *gin.Context) {
 	var input signInInput
 
