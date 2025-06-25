@@ -8,6 +8,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// @Summary SignUp
+// @Security ApiKeyAuth
+// @tags events
+// @Descrition get event list
+// @ID create-list
+// @Accept json
+// @Produce json
+// @Param input body model.User true "account info"
+// @Success 200 {integer} integer 1
+// @Failure 400, 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Failure default {object} errorResponse
+// @Router /auth/sign-up [post]
 func (h *Handler) getEventList(c *gin.Context) {
 	id, ok := c.Get(userCtx)
 	if !ok {

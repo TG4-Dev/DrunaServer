@@ -7,6 +7,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// @Summary SignUp
+// @tags Auth
+// @Descrition create account
+// @ID create-account
+// @Accept json
+// @Produce json
+// @Param input body model.User true "account info"
+// @Success 200 {integer} integer 1
+// @Failure 404 {object} handler.ErrorResponse
+// @Failure 400 {object} handler.ErrorResponse
+// @Failure 500 {object} handler.ErrorResponse
+// @Failure default {object} handler.ErrorResponse
+// @Router /auth/sign-up [post]
 func (h *Handler) signUp(c *gin.Context) {
 	var input model.User
 
