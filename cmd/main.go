@@ -15,6 +15,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+// @title Druna API
+// @version 1.0
+// @description API server for Druna App
+
+//@host localhost:8000
+//@bBasePath /
+
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name Authorization
 func main() {
 	logrus.SetFormatter(new(logrus.JSONFormatter))
 

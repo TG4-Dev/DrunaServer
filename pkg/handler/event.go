@@ -8,6 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// @Summary Get event List
+// @Security ApiKeyAuth
+// @Tags events
+// @Description Get current user's event list
+// @ID get-events
+// @Produce  json
+// @Success 200 {array} model.EventDoc
+// @Failure 400,404 {object} handler.ErrorResponse
+// @Failure 500 {object} handler.ErrorResponse
+// @Failure default {object} handler.ErrorResponse
+// @Router /api/events [get]
 func (h *Handler) getEventList(c *gin.Context) {
 	id, ok := c.Get(userCtx)
 	if !ok {
@@ -34,6 +45,19 @@ func (h *Handler) getFreeTime(c *gin.Context) {
 
 }
 
+// @Summary Create Event
+// @Security ApiKeyAuth
+// @Tags events
+// @Description Create event
+// @ID create-event
+// @Accept  json
+// @Produce  json
+// @Param input body model.EventDoc true "list info"
+// @Success 200 {object} model.AddEventDoc
+// @Failure 400,404 {object} handler.ErrorResponse
+// @Failure 500 {object} handler.ErrorResponse
+// @Failure default {object} handler.ErrorResponse
+// @Router /api/events/ [post]
 func (h *Handler) addEvent(c *gin.Context) {
 	id, ok := c.Get(userCtx)
 	if !ok {
@@ -68,6 +92,19 @@ func (h *Handler) addEvent(c *gin.Context) {
 
 }
 
+// @Summary Delete Event
+// @Security ApiKeyAuth
+// @Tags events
+// @Description Create event
+// @ID delete-event
+// @Accept  json
+// @Produce  json
+// @Param input body model.DeleteEventDoc true "list info"
+// @Success 200 {object} model.AddEventDoc
+// @Failure 400,404 {object} handler.ErrorResponse
+// @Failure 500 {object} handler.ErrorResponse
+// @Failure default {object} handler.ErrorResponse
+// @Router /api/events/ [delete]
 func (h *Handler) deleteEvent(c *gin.Context) {
 	userIDInterface, ok := c.Get(userCtx)
 	if !ok {
