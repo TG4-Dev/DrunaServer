@@ -9,24 +9,6 @@ import (
 )
 
 func (h *Handler) getEventList(c *gin.Context) {
-	id, ok := c.Get(userCtx)
-	if !ok {
-		NewErrorResponse(c, http.StatusInternalServerError, "user id not found")
-		return
-	}
-
-	userID, ok := id.(int)
-	if !ok {
-		NewErrorResponse(c, http.StatusInternalServerError, "user id is of invalid type")
-		return
-	}
-	eventList, err := h.services.GetEventList(userID)
-	if err != nil {
-		NewErrorResponse(c, http.StatusInternalServerError, "failed to fetch event: "+err.Error())
-		return
-	}
-
-	c.JSON(http.StatusOK, eventList)
 
 }
 
@@ -38,7 +20,6 @@ func (h *Handler) addEvent(c *gin.Context) {
 	id, ok := c.Get(userCtx)
 	if !ok {
 		NewErrorResponse(c, http.StatusInternalServerError, "user id not found")
-		return
 	}
 
 	var input model.Event
@@ -49,13 +30,12 @@ func (h *Handler) addEvent(c *gin.Context) {
 		return
 	}
 
-	userID, ok := id.(int)
 	if !ok {
 		NewErrorResponse(c, http.StatusInternalServerError, "user id is of invalid type")
 		return
 	}
 
-	input.UserID = strconv.Itoa(userID)
+	input.UserID = id.(int)
 
 	eventId, err := h.services.Event.CreateEvent(input)
 	if err != nil {
