@@ -48,6 +48,11 @@ func (h *Handler) InitRoutes() *gin.Engine {
 
 			events.POST("/free-time", h.getFreeTime)
 		}
+
+		groups := api.Group("/groups")
+		{
+			groups.POST("/create", h.createGroup)
+		}
 	}
 	return router
 }

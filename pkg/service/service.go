@@ -30,6 +30,7 @@ type Friendship interface {
 }
 
 type Group interface {
+	CreateGroup(input model.Group) (int, error)
 }
 
 type Service struct {
@@ -45,5 +46,6 @@ func NewService(repos *repository.Repository) *Service {
 		Authorization: NewAuthService(repos.Authorization),
 		Event:         NewEventService(repos.Event),
 		Friendship:    NewFriendshipService(repos.Friendship),
+		Group:         NewGroupService(repos.Group),
 	}
 }

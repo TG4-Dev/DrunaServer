@@ -32,6 +32,7 @@ type Friendship interface {
 }
 
 type Group interface {
+	CreateGroup(input model.Group) (int, error)
 }
 
 type Repository struct {
@@ -46,6 +47,7 @@ func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{
 		Authorization: NewAuthPostgres(db),
 		Event:         NewEventPostgres(db),
-		Friendship:    NewFriendShipPostgres(db),
+		Friendship:    NewFriendshipPostgres(db),
+		Group:         NewGroupPostgres(db),
 	}
 }
