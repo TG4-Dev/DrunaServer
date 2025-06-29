@@ -1,0 +1,12 @@
+# Copy example config
+# cp  config.yaml.example config.yaml
+# Then edit with your own settings
+
+port: "8000"
+
+db:
+  username: "postgres"
+  host: "localhost"
+  port: "22001"
+  dbname: "postgres"
+  sslmode: "disable"
