@@ -44,6 +44,10 @@ type signInInput struct {
 	PasswordHash string `json:"passwordHash" binding:"required"`
 }
 
+type renewTokenInput struct {
+	RefreshToken string `json:"refreshToken" binding:"required"`
+}
+
 // @Summary SignIn
 // @tags Auth
 // @Descrition sign in
@@ -65,13 +69,58 @@ func (h *Handler) signIn(c *gin.Context) {
 		return
 	}
 
-	token, err := h.services.Authorization.GenerateToken(input.Username, input.PasswordHash)
+	accessToken, refreshToken, err := h.services.Authorization.GenerateAccessRefreshToken(input.Username, input.PasswordHash)
+	if err != nil {
+		NewErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	/*
+		refreshToken, err := h.services.Authorization.GenerateRefreshToken(input.Username, input.PasswordHash)
+		if err != nil {
+			NewErrorResponse(c, http.StatusInternalServerError, err.Error())
+			return
+		}
+	*/
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"access token":  accessToken,
+		"refresh token": refreshToken,
+	})
+}
+
+// @Summary RenewToken
+// @tags Auth
+// @Descrition renew token
+// @ID renew token
+// @Accept json
+// @Produce json
+// @Param input body model.RenewTokenDoc true "account info"
+// @Success 200 {integer} integer 1
+// @Failure 404 {object} handler.ErrorResponse
+// @Failure 400 {object} handler.ErrorResponse
+// @Failure 500 {object} handler.ErrorResponse
+// @Failure default {object} handler.ErrorResponse
+// @Router /auth/renewToken [post]
+func (h *Handler) renewToken(c *gin.Context) {
+	var input renewTokenInput
+	if err := c.BindJSON(&input); err != nil {
+		NewErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	userID, Username, err := h.services.Authorization.ParseToken(input.RefreshToken)
+	if err != nil {
+		NewErrorResponse(c, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	accessToken, refreshToken, err := h.services.Authorization.RenewToken(Username, userID)
 	if err != nil {
 		NewErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	c.JSON(http.StatusOK, map[string]interface{}{
-		"token": token,
+		"access token":  accessToken,
+		"refresh token": refreshToken,
 	})
 }
