@@ -13,7 +13,7 @@ import (
 
 const (
 	signingKey      = "jgfdi4trgdffdgdf"
-	accessTokenTTL  = 1 * time.Minute
+	accessTokenTTL  = 12 * time.Hour
 	refreshTokenTTL = 7 * 24 * time.Hour
 )
 
