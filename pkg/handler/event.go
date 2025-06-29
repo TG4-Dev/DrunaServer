@@ -20,17 +20,25 @@ import (
 // @Failure default {object} handler.ErrorResponse
 // @Router /api/events [get]
 func (h *Handler) getEventList(c *gin.Context) {
-	id, ok := c.Get(userCtx)
-	if !ok {
-		NewErrorResponse(c, http.StatusInternalServerError, "user id not found")
+	userID := h.getUserIdFromToken(c)
+	if userID == 0 {
 		return
 	}
 
-	userID, ok := id.(int)
-	if !ok {
-		NewErrorResponse(c, http.StatusInternalServerError, "user id is of invalid type")
+	type id struct {
+		ID int `json:"id"`
+	}
+
+	var input id
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
+
+	if input.ID > 0 {
+		userID = input.ID
+	}
+
 	eventList, err := h.services.GetEventList(userID)
 	if err != nil {
 		NewErrorResponse(c, http.StatusInternalServerError, "failed to fetch event: "+err.Error())
