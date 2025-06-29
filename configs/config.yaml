@@ -1,8 +1,8 @@
-port: "8000"
+port: "22000"
 
 db:
   username: "postgres"
-  host: "localhost"
-  port: "22001"
-  dbname: "postgres"
+  host: "db"
+  port: "5432"
+  dbname: "druna_db"
   sslmode: "disable"
