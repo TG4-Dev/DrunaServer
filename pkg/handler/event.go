@@ -19,9 +19,15 @@ func (h *Handler) getEventList(c *gin.Context) {
 	}
 
 	var input id
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
-		return
+
+	idStr := c.Query("id")
+	if idStr != "" { // Если ничего не передано в запросе, вернёт список по id из token
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(400, gin.H{"error": "ID must be a number"})
+			return
+		}
+		input.ID = id
 	}
 
 	if input.ID > 0 {
