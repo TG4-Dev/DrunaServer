@@ -41,10 +41,6 @@ func (h *Handler) getEventList(c *gin.Context) {
 		input.ID = id
 	}
 
-	if input.ID > 0 {
-		userID = input.ID
-	}
-
 	eventList, err := h.services.GetEventList(userID)
 	if err != nil {
 		NewErrorResponse(c, http.StatusInternalServerError, "failed to fetch event: "+err.Error())
