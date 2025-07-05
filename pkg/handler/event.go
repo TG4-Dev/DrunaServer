@@ -25,12 +25,6 @@ func (h *Handler) getEventList(c *gin.Context) {
 		return
 	}
 
-	type id struct {
-		ID int `json:"id"`
-	}
-
-	var input id
-
 	idStr := c.Query("id")
 	if idStr != "" { // Если ничего не передано в запросе, вернёт список по id из token
 		id, err := strconv.Atoi(idStr)
@@ -38,11 +32,7 @@ func (h *Handler) getEventList(c *gin.Context) {
 			c.JSON(400, gin.H{"error": "ID must be a number"})
 			return
 		}
-		input.ID = id
-	}
-
-	if input.ID > 0 {
-		userID = input.ID
+		userID = id
 	}
 
 	eventList, err := h.services.GetEventList(userID)
