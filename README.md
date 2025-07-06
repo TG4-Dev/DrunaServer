@@ -65,7 +65,7 @@ swag init -g cmd/main.go
 Use the JWT access token returned from /auth/sign-in in the Authorization header for all /api/* requests:
 
 ```
-Authorization: Bearer <token>
+Authorization: Bearer <access token>
 ```
 
 Use the JWT refresh token and /auth/renew-token endpoint to get a new access token:
