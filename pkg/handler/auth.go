@@ -3,6 +3,7 @@ package handler
 import (
 	"druna_server/pkg/model"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -99,15 +100,26 @@ func (h *Handler) signIn(c *gin.Context) {
 // @Failure 400 {object} handler.ErrorResponse
 // @Failure 500 {object} handler.ErrorResponse
 // @Failure default {object} handler.ErrorResponse
-// @Router /auth/renewToken [post]
+// @Router /auth/renew-token [post]
 func (h *Handler) renewToken(c *gin.Context) {
-	var input renewTokenInput
-	if err := c.BindJSON(&input); err != nil {
-		NewErrorResponse(c, http.StatusBadRequest, err.Error())
+	header := c.GetHeader(authorizationHeader)
+	if header == "" {
+		NewErrorResponse(c, http.StatusUnauthorized, "empty auth header")
 		return
 	}
 
-	userID, Username, err := h.services.Authorization.ParseToken(input.RefreshToken)
+	headerParts := strings.Split(header, " ")
+	if len(headerParts) != 2 || headerParts[0] != "Bearer" {
+		NewErrorResponse(c, http.StatusUnauthorized, "invalid auth header")
+		return
+	}
+
+	if len(headerParts[1]) == 0 {
+		NewErrorResponse(c, http.StatusUnauthorized, "token is empty")
+		return
+	}
+
+	userID, Username, err := h.services.Authorization.ParseToken(headerParts[1])
 	if err != nil {
 		NewErrorResponse(c, http.StatusUnauthorized, err.Error())
 		return
