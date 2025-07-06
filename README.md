@@ -62,10 +62,16 @@ swag init -g cmd/main.go
 - All Swagger documentation models are defined in model/structs_doc.go.
 
 ## Authentication
-Use the JWT token returned from /auth/sign-in in the Authorization header for all /api/* requests:
+Use the JWT access token returned from /auth/sign-in in the Authorization header for all /api/* requests:
 
 ```
-Authorization: Bearer <token>
+Authorization: Bearer <access token>
+```
+
+Use the JWT refresh token and /auth/renew-token endpoint to get a new access token:
+
+```
+Authorization: Bearer <refresh token>
 ```
 
 ## Endpoints
@@ -74,6 +80,7 @@ Authorization: Bearer <token>
 | ------ | --------------------- | --------------------- |
 | POST   | /auth/sign-up         | Register a new user   |
 | POST   | /auth/sign-in         | Login and get JWT     |
+| POST   | /auth/renew-token     | Renew JWT access token|
 | POST   | /api/events/add-event | Create a new event    |
 | POST   | /api/events/list      | List user events      |
 | DELETE | /api/events/\:id      | Delete an event       |

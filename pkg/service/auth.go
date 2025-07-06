@@ -67,21 +67,6 @@ func (s *AuthService) GenerateAccessRefreshToken(username, passwordHash string) 
 	return accessToken, refreshToken, nil
 }
 
-/*
-	func (s *AuthService) GenerateRefreshToken(username, passwordHash string) (string, error) {
-		user, err := s.repo.GetUser(username, generatePasswordHash(passwordHash))
-		if err != nil {
-			return "", err
-		}
-
-		refreshToken, err := s.GenerateToken(refreshTokenTTL, user)
-		if err != nil {
-			return "", err
-		}
-
-		return refreshToken, nil
-	}
-*/
 func (s *AuthService) RenewToken(username string, userid int) (string, string, error) {
 	user := model.User{
 		ID:       userid,
