@@ -22,7 +22,6 @@ func NewHandler(services *service.Service) *Handler {
 func (h *Handler) InitRoutes() *gin.Engine {
 	router := gin.New()
 
-
 	ping := router.Group("/ping")
 	{
 		ping.GET("/", h.ping)
@@ -31,7 +30,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	auth := router.Group("/auth")
 	{
-		auth.POST("/sign-up", h.signUp)
+		auth.POST("/sign-up", h.signUp) //localhost/sign-up email: "konser.dal@yandex.com" username: "djkostjan" ...
 		auth.POST("/sign-in", h.signIn)
 		auth.POST("/renew-token", h.renewToken)
 	}

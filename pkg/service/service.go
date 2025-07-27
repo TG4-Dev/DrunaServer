@@ -13,6 +13,7 @@ type Authorization interface {
 	//GenerateRefreshToken(username, passwordHash string) (string, error)
 	ParseToken(token string) (int, string, error)
 	RenewToken(username string, userid int) (string, string, error)
+	TelegramLogin(telegramID int64, name, username string) (string, string, error)
 }
 
 type User interface {
