@@ -6,7 +6,10 @@ import (
 	"druna_server/pkg/repository"
 	"errors"
 	"fmt"
+	"os"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/golang-jwt/jwt"
 )
@@ -24,11 +27,12 @@ type tokenClaims struct {
 }
 
 type AuthService struct {
-	repo repository.Authorization
+	repo     repository.Authorization
+	botToken string
 }
 
 func NewAuthService(repo repository.Authorization) *AuthService {
-	return &AuthService{repo: repo}
+	return &AuthService{repo: repo, botToken: os.Getenv("BOT_TOKEN")}
 }
 
 func (s *AuthService) CreateUser(user model.User) (int, error) {
@@ -110,4 +114,36 @@ func generatePasswordHash(password string) string {
 	hash := sha1.New()
 	hash.Write([]byte(password))
 	return fmt.Sprint(hash)
+}
+
+// TelegramLogin processes Telegram WebApp auth
+func (s *AuthService) TelegramLogin(telegramID int64, name, username string) (string, string, error) {
+	// Преобразуем telegramID в строку, будем использовать как username
+	telegramUsername := fmt.Sprintf("tg_%d", telegramID)
+
+	// Генерируем фиктивный пароль-хеш
+	randomPassword := uuid.New().String()
+	passwordHash := generatePasswordHash(randomPassword)
+
+	// Пытаемся найти пользователя
+	user, err := s.repo.GetUser(telegramUsername, passwordHash)
+	if err != nil {
+		// Если пользователь не найден — регистрируем его
+		user = model.User{
+			Name:         name,
+			Username:     telegramUsername,
+			PasswordHash: passwordHash,
+			// @telegram.local для того чтобы отличать пользователей
+			Email:     fmt.Sprintf("%s@telegram.local", telegramUsername),
+			AvatarURL: "",
+		}
+
+		_, err := s.repo.CreateUser(user)
+		if err != nil {
+			return "", "", err
+		}
+	}
+
+	// Генерируем токены с теми же username и passwordHash
+	return s.GenerateAccessRefreshToken(telegramUsername, passwordHash)
 }

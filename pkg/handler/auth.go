@@ -136,3 +136,33 @@ func (h *Handler) renewToken(c *gin.Context) {
 		"refresh token": refreshToken,
 	})
 }
+
+func (h *Handler) telegramAuth(c *gin.Context) {
+	var input struct {
+		TelegramID int64  `json:"telegram_id" binding:"required"`
+		Name       string `json:"name" binding:"required"`
+		Username   string `json:"username" binding:"required"`
+	}
+
+	if err := c.BindJSON(&input); err != nil {
+		NewErrorResponse(c, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	username, passwordHash, err := h.services.Authorization.TelegramLogin(input.TelegramID, input.Name, input.Username)
+	if err != nil {
+		NewErrorResponse(c, http.StatusUnauthorized, "telegram auth failed: "+err.Error())
+		return
+	}
+
+	accessToken, refreshToken, err := h.services.Authorization.GenerateAccessRefreshToken(username, passwordHash)
+	if err != nil {
+		NewErrorResponse(c, http.StatusInternalServerError, "failed to generate tokens: "+err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"accessToken":  accessToken,
+		"refreshToken": refreshToken,
+	})
+}

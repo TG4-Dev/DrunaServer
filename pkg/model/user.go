@@ -7,6 +7,7 @@ type User struct {
 	Email        string `json:"email" binding:"required"`
 	PasswordHash string `json:"passwordHash" binding:"required"`
 	AvatarURL    string `json:"avatarURL"`
+	TelegramID   string `json:"telegramID"`
 	// Events       []Event       `json:"events"`
 	// OwnedGroups  []Group       `json:"ownedGroups"`
 	// GroupMembers []GroupMember `json:"groupMembers"`
