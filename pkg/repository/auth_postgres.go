@@ -3,6 +3,7 @@ package repository
 import (
 	"druna_server/pkg/model"
 	"fmt"
+	"strings"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -47,4 +48,22 @@ func (r *AuthPostgres) GetUserByTelegramID(telegramID int64) (model.User, error)
 	)
 	err := r.db.Get(&user, query, telegramID)
 	return user, err
+}
+
+func (r *AuthPostgres) SearchUsers(prefix string) ([]model.FriendInfo, error) {
+	trimmed := strings.TrimSpace(prefix)
+	if trimmed == "" {
+		return []model.FriendInfo{}, nil
+	}
+
+	var users []model.FriendInfo
+	query := fmt.Sprintf(`
+		SELECT id, name, username FROM %s
+		WHERE username ILIKE $1
+		ORDER BY username
+		LIMIT 20`, usersTable)
+	if err := r.db.Select(&users, query, trimmed+"%"); err != nil {
+		return nil, err
+	}
+	return users, nil
 }

@@ -19,12 +19,15 @@ import (
 const (
 	accessTokenTTL  = 12 * time.Hour
 	refreshTokenTTL = 7 * 24 * time.Hour
+	tokenTypeAccess = "access"
+	tokenTypeRefresh = "refresh"
 )
 
 type tokenClaims struct {
 	jwt.RegisteredClaims
-	UserID   int    `json:"user_id"`
-	Username string `json:"username"`
+	UserID    int    `json:"user_id"`
+	Username  string `json:"username"`
+	TokenType string `json:"token_type"`
 }
 
 type telegramUser struct {
@@ -36,11 +39,12 @@ type telegramUser struct {
 
 type AuthService struct {
 	repo       repository.Authorization
+	tokenRepo  repository.Token
 	botToken   string
 	signingKey []byte
 }
 
-func NewAuthService(repo repository.Authorization) *AuthService {
+func NewAuthService(repo repository.Authorization, tokenRepo repository.Token) *AuthService {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		logrus.Fatal("JWT_SECRET environment variable is required")
@@ -48,30 +52,26 @@ func NewAuthService(repo repository.Authorization) *AuthService {
 
 	return &AuthService{
 		repo:       repo,
+		tokenRepo:  tokenRepo,
 		botToken:   os.Getenv("BOT_TOKEN"),
 		signingKey: []byte(secret),
 	}
 }
 
 func (s *AuthService) CreateUser(user model.User) (int, error) {
-	hash, err := hashPassword(user.PasswordHash)
+	password := user.PasswordHash
+	if password == "" {
+		password = user.Password
+	}
+	if password == "" {
+		return 0, errors.New("password is required")
+	}
+	hash, err := hashPassword(password)
 	if err != nil {
 		return 0, err
 	}
 	user.PasswordHash = hash
 	return s.repo.CreateUser(user)
-}
-
-func (s *AuthService) GenerateToken(tokenTTL time.Duration, user model.User) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &tokenClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenTTL)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-		UserID:   user.ID,
-		Username: user.Username,
-	})
-	return token.SignedString(s.signingKey)
 }
 
 func (s *AuthService) GenerateAccessRefreshToken(username, password string) (string, string, error) {
@@ -87,33 +87,49 @@ func (s *AuthService) GenerateAccessRefreshToken(username, password string) (str
 	return s.generateTokensForUser(user)
 }
 
-func (s *AuthService) RenewToken(username string, userid int) (string, string, error) {
-	user := model.User{
-		ID:       userid,
-		Username: username,
+func (s *AuthService) RenewToken(refreshToken string) (string, string, error) {
+	claims, err := s.parseTokenClaims(refreshToken, tokenTypeRefresh)
+	if err != nil {
+		return "", "", err
 	}
 
+	if claims.ID == "" {
+		return "", "", errors.New("refresh token missing jti")
+	}
+
+	revoked, err := s.tokenRepo.IsTokenRevoked(claims.ID)
+	if err != nil {
+		return "", "", err
+	}
+	if revoked {
+		return "", "", errors.New("refresh token has been revoked")
+	}
+
+	if claims.ExpiresAt != nil {
+		if err := s.tokenRepo.RevokeToken(claims.ID, claims.ExpiresAt.Time); err != nil {
+			return "", "", err
+		}
+	}
+
+	user := model.User{ID: claims.UserID, Username: claims.Username}
 	return s.generateTokensForUser(user)
 }
 
-func (s *AuthService) ParseToken(accessToken string) (int, string, error) {
-	token, err := jwt.ParseWithClaims(accessToken, &tokenClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("invalid signing method")
-		}
-
-		return s.signingKey, nil
-	})
+func (s *AuthService) ParseAccessToken(accessToken string) (int, string, error) {
+	claims, err := s.parseTokenClaims(accessToken, tokenTypeAccess)
 	if err != nil {
 		return 0, "", err
 	}
-
-	claims, ok := token.Claims.(*tokenClaims)
-	if !ok {
-		return 0, "", errors.New("token claims are not of type *tokenClaims")
-	}
-
 	return claims.UserID, claims.Username, nil
+}
+
+// Deprecated: use ParseAccessToken.
+func (s *AuthService) ParseToken(accessToken string) (int, string, error) {
+	return s.ParseAccessToken(accessToken)
+}
+
+func (s *AuthService) SearchUsers(prefix string) ([]model.FriendInfo, error) {
+	return s.repo.SearchUsers(prefix)
 }
 
 func (s *AuthService) TelegramLogin(telegramID int64, name, username string) (string, string, error) {
@@ -183,17 +199,53 @@ func (s *AuthService) LoginWithTelegramInitData(initData string) (string, string
 }
 
 func (s *AuthService) generateTokensForUser(user model.User) (string, string, error) {
-	accessToken, err := s.GenerateToken(accessTokenTTL, user)
+	accessToken, err := s.generateToken(accessTokenTTL, user, tokenTypeAccess)
 	if err != nil {
 		return "", "", err
 	}
 
-	refreshToken, err := s.GenerateToken(refreshTokenTTL, user)
+	refreshToken, err := s.generateToken(refreshTokenTTL, user, tokenTypeRefresh)
 	if err != nil {
 		return "", "", err
 	}
 
 	return accessToken, refreshToken, nil
+}
+
+func (s *AuthService) generateToken(tokenTTL time.Duration, user model.User, tokenType string) (string, error) {
+	jti := uuid.New().String()
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, &tokenClaims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        jti,
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenTTL)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+		UserID:    user.ID,
+		Username:  user.Username,
+		TokenType: tokenType,
+	})
+	return token.SignedString(s.signingKey)
+}
+
+func (s *AuthService) parseTokenClaims(tokenStr, expectedType string) (*tokenClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &tokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("invalid signing method")
+		}
+		return s.signingKey, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*tokenClaims)
+	if !ok {
+		return nil, errors.New("token claims are not of type *tokenClaims")
+	}
+	if claims.TokenType != expectedType {
+		return nil, fmt.Errorf("expected %s token", expectedType)
+	}
+	return claims, nil
 }
 
 func hashPassword(password string) (string, error) {

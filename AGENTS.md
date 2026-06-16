@@ -1,28 +1,25 @@
 # AGENTS.md — DrunaServer
 
-Backend REST API for the Druna app: users, events, friends, and groups.
+Guidance for AI agents and contributors working on this repository.
 
-## Tech stack
+## Project overview
 
-- Go 1.24+, Gin, PostgreSQL (sqlx)
-- JWT auth, Swagger (swaggo), Viper + godotenv for config
-- GitHub Actions CI, golangci-lint
-
-## Architecture
+Go REST API (Gin + PostgreSQL) for users, events, friends, and groups.
 
 ```
-HTTP request → pkg/handler → pkg/service → pkg/repository → PostgreSQL
+HTTP → pkg/handler → pkg/service → pkg/repository → PostgreSQL
 ```
 
-| Layer        | Path               | Responsibility                          |
-|--------------|--------------------|-----------------------------------------|
-| Entry        | `cmd/main.go`      | Config, DB, graceful shutdown           |
-| HTTP         | `pkg/handler/`     | Routes, middleware, JSON responses      |
-| Business     | `pkg/service/`     | JWT, password hashing, domain rules     |
-| Data         | `pkg/repository/`  | SQL via sqlx                            |
-| Models       | `pkg/model/`       | Domain structs; Swagger types in `structs_doc.go` |
+| Layer | Path | Role |
+|-------|------|------|
+| Entry | `cmd/main.go` | Config, DB, graceful shutdown |
+| HTTP | `pkg/handler/` | Routes, middleware, JSON |
+| Business | `pkg/service/` | JWT, validation, domain rules |
+| Data | `pkg/repository/` | SQL via sqlx |
+| Models | `pkg/model/` | Domain structs; Swagger types in `structs_doc.go` |
+| Tests | `pkg/*_test.go`, `tests/integration/` | Unit and integration tests |
 
-## Quick start (local)
+## Quick start
 
 ```bash
 go mod tidy
@@ -31,72 +28,104 @@ cp .env.example .env
 go run cmd/main.go
 ```
 
-Server listens on the port from `configs/config.yaml` (default `8000`).
-
 ## Environment variables
 
-| Variable       | Required | Description                          |
-|----------------|----------|--------------------------------------|
-| `DB_PASSWORD`  | Yes      | PostgreSQL password                  |
-| `JWT_SECRET`   | Yes      | HMAC key for signing JWT tokens      |
-| `BOT_TOKEN`    | Telegram | Telegram bot token for WebApp auth   |
-| `CORS_ORIGINS` | No       | Comma-separated allowed origins (default `*`) |
-| `DATABASE_URL` | Docker   | Used by entrypoint for auto-migrations |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DB_PASSWORD` | Yes | PostgreSQL password |
+| `JWT_SECRET` | Yes | JWT HMAC signing key |
+| `BOT_TOKEN` | Telegram auth | Telegram bot token for initData HMAC |
+| `CORS_ORIGINS` | No | Comma-separated allowed origins (default `*`) |
+| `DATABASE_URL` | Docker | Auto-migrations in `docker-entrypoint.sh` |
+| `TEST_DATABASE_URL` | Integration tests | Postgres DSN for `tests/integration` |
+
+Runtime config (port, db host/port/name): `configs/config.yaml`. Docker uses `configs/config.docker.yaml`.
+
+## API conventions
+
+### Versioning
+
+- Preferred: `/api/v1/...`
+- Legacy alias: `/api/...` (same handlers)
+- Auth: `/auth/...` (not versioned)
+
+### Response envelope
+
+Always use helpers from `pkg/handler/response.go`:
+
+- Success: `Success(c, status, data)` → `{ "data": ..., "error": null }`
+- Error: `NewErrorResponse(c, status, message)` → `{ "data": null, "error": { "message", "code" } }`
+
+Do not return raw `gin.H{"error": ...}` in new code.
+
+### Auth
+
+- Access tokens (`token_type=access`) — required for `/api/*` middleware
+- Refresh tokens (`token_type=refresh`) — only for `POST /auth/renew-token`
+- Refresh rotation: old refresh JTI stored in `revoked_tokens` table
+- Sign-in body: prefer `password`; legacy field `passwordHash` still accepted
+- User ID from JWT middleware (`userCtx`); never trust query/body for identity
+
+### Rate limiting
+
+`/auth/*` routes: 30 requests/minute per IP.
 
 ## Adding a new endpoint
 
-1. Define method on repository interface in `pkg/repository/repository.go`
-2. Implement in `pkg/repository/*_postgres.go`
-3. Add service method in `pkg/service/` and interface in `service.go`
-4. Add handler in `pkg/handler/` and register route in `pkg/handler/handler.go`
-5. Add Swagger annotations; run `swag init -g cmd/main.go`
-6. Update `README.md` endpoint table if the route is public
+1. Add repository method in `pkg/repository/repository.go` + `*_postgres.go`
+2. Add service method in `pkg/service/` + interface in `service.go`
+3. Add handler in `pkg/handler/` and register in `registerProtectedRoutes()` or auth group in `handler.go`
+4. Add Swagger annotations; run `swag init -g cmd/main.go`
+5. Update `README.md` endpoint table
+6. Add unit tests; integration test if DB logic is involved
 
-## Conventions
-
-- Register routes only in `pkg/handler/handler.go`
-- Return API errors via `NewErrorResponse()` from `pkg/handler/response.go`
-- Authenticated user ID comes from JWT middleware (`userCtx`); never trust query/body for identity
-- Passwords are hashed with bcrypt on sign-up; clients send plaintext in the `passwordHash` JSON field (legacy name)
-- Token response keys: `accessToken`, `refreshToken`
-- `/auth/*` routes are rate-limited (30 req/min per IP)
-
-## Swagger
+## Makefile targets
 
 ```bash
-go install github.com/swaggo/swag/cmd/swag@latest
-swag init -g cmd/main.go
+make build          # docker-compose build
+make up / down      # start/stop containers
+make dev-up         # docker-compose.dev.yml with air hot reload
+make migrate-up     # run migrations in compose network
+make test           # go test ./...
+make lint           # golangci-lint
+make smoke          # scripts/smoke_test.sh
+make hook-install   # set git core.hooksPath to .githooks
 ```
-
-## Docker
-
-```bash
-make build
-make up
-```
-
-Migrations run automatically on container start via `docker-entrypoint.sh`.
-
-App: `http://localhost:22000`. Postgres: `localhost:5432`, database `druna_db`.
 
 ## Testing
 
 ```bash
-make test          # unit tests
-make lint          # golangci-lint
-make smoke         # end-to-end curl script (server must be running)
-bash scripts/smoke_test.sh
+JWT_SECRET=test-secret-key go test ./pkg/... -count=1
+TEST_DATABASE_URL='postgres://...' go test ./tests/integration/... -count=1
 ```
 
-## Known limitations
+CI runs unit tests + integration tests with Postgres service (`.github/workflows/ci.yml`).
 
-- Password hashing uses bcrypt without DB migration — existing users must re-register
-- Group scheduling (confirmed time negotiation) is not implemented yet
+## Migrations
+
+SQL files in `migrations/`. Format: golang-migrate timestamp_name.{up,down}.sql.
+
+Recent additions:
+
+- `20250617000002` — unique constraint on `group_members(group_id, user_id)`
+- `20250617000003` — `revoked_tokens` table + performance indexes
+
+## Observability
+
+- `GET /ping/` — health + DB ping (`503` if DB down)
+- `GET /metrics` — Prometheus (request count, duration)
+- Request ID: `X-Request-ID` header (auto-generated if missing)
 
 ## Pre-PR checklist
 
 - [ ] `make test`
 - [ ] `go vet ./...`
 - [ ] `make lint` (or CI green)
-- [ ] Swagger regenerated if API changed
-- [ ] No secrets logged to stdout
+- [ ] Swagger regenerated if handlers changed
+- [ ] Migration added for schema changes
+- [ ] `README.md` updated for new public routes
+
+## Known limitations
+
+- bcrypt password hashing without legacy migration — old users must re-register
+- Swagger annotations incomplete on some newer handlers

@@ -12,9 +12,10 @@ type Group struct {
 }
 
 type GroupMemberInfo struct {
-	ID       int    `json:"id" db:"id"`
-	Name     string `json:"name" db:"name"`
-	Username string `json:"username" db:"username"`
+	ID            int        `json:"id" db:"id"`
+	Name          string     `json:"name" db:"name"`
+	Username      string     `json:"username" db:"username"`
+	ConfirmedTime *time.Time `json:"confirmedTime,omitempty" db:"confirmed_time"`
 }
 
 type GroupDetails struct {
@@ -24,4 +25,12 @@ type GroupDetails struct {
 
 type AddGroupMemberDoc struct {
 	Username string `json:"username"`
+}
+
+type ConfirmGroupTimeDoc struct {
+	ConfirmedTime time.Time `json:"confirmedTime"`
+}
+
+type GroupFreeTimeInputDoc struct {
+	Date string `json:"date"`
 }

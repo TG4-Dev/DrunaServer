@@ -29,6 +29,28 @@ func (m *mockAuthRepo) GetUserByTelegramID(telegramID int64) (model.User, error)
 	return model.User{}, os.ErrNotExist
 }
 
+func (m *mockAuthRepo) SearchUsers(prefix string) ([]model.FriendInfo, error) {
+	return []model.FriendInfo{}, nil
+}
+
+type mockTokenRepo struct {
+	revoked map[string]bool
+}
+
+func (m *mockTokenRepo) RevokeToken(jti string, expiresAt time.Time) error {
+	if m.revoked == nil {
+		m.revoked = map[string]bool{}
+	}
+	m.revoked[jti] = true
+	return nil
+}
+
+func (m *mockTokenRepo) IsTokenRevoked(jti string) (bool, error) {
+	return m.revoked != nil && m.revoked[jti], nil
+}
+
+func (m *mockTokenRepo) Ping() error { return nil }
+
 func TestMain(m *testing.M) {
 	os.Setenv("JWT_SECRET", "test-secret-key-for-unit-tests-only")
 	os.Exit(m.Run())
@@ -44,42 +66,59 @@ func TestHashAndVerifyPassword(t *testing.T) {
 	}
 }
 
-func TestGenerateAndParseToken(t *testing.T) {
-	svc := NewAuthService(&mockAuthRepo{})
-	user := model.User{ID: 42, Username: "alice"}
+func TestGenerateAndParseAccessToken(t *testing.T) {
+	hash, _ := hashPassword("password")
+	repo := &mockAuthRepo{
+		users: map[string]model.User{
+			"alice": {ID: 42, Username: "alice", PasswordHash: hash},
+		},
+	}
+	svc := NewAuthService(repo, &mockTokenRepo{})
 
-	token, err := svc.GenerateToken(time.Hour, user)
+	access, refresh, err := svc.GenerateAccessRefreshToken("alice", "password")
 	if err != nil {
-		t.Fatalf("generate token failed: %v", err)
+		t.Fatalf("login failed: %v", err)
 	}
 
-	userID, username, err := svc.ParseToken(token)
+	userID, username, err := svc.ParseAccessToken(access)
 	if err != nil {
-		t.Fatalf("parse token failed: %v", err)
+		t.Fatalf("parse access token failed: %v", err)
 	}
 	if userID != 42 || username != "alice" {
 		t.Fatalf("unexpected claims: %d %s", userID, username)
 	}
+
+	_, _, err = svc.ParseAccessToken(refresh)
+	if err == nil {
+		t.Fatal("refresh token must not parse as access token")
+	}
 }
 
-func TestGenerateAccessRefreshToken(t *testing.T) {
-	hash, err := hashPassword("password")
-	if err != nil {
-		t.Fatalf("hash failed: %v", err)
-	}
-
+func TestRenewTokenRotatesRefresh(t *testing.T) {
+	hash, _ := hashPassword("password")
 	repo := &mockAuthRepo{
 		users: map[string]model.User{
 			"bob": {ID: 1, Username: "bob", PasswordHash: hash},
 		},
 	}
-	svc := NewAuthService(repo)
+	tokenRepo := &mockTokenRepo{}
+	svc := NewAuthService(repo, tokenRepo)
 
-	access, refresh, err := svc.GenerateAccessRefreshToken("bob", "password")
+	_, refresh, err := svc.GenerateAccessRefreshToken("bob", "password")
 	if err != nil {
 		t.Fatalf("login failed: %v", err)
 	}
-	if access == "" || refresh == "" {
-		t.Fatal("expected non-empty tokens")
+
+	newAccess, newRefresh, err := svc.RenewToken(refresh)
+	if err != nil {
+		t.Fatalf("renew failed: %v", err)
+	}
+	if newAccess == "" || newRefresh == "" {
+		t.Fatal("expected new tokens")
+	}
+
+	_, _, err = svc.RenewToken(refresh)
+	if err == nil {
+		t.Fatal("old refresh token should be revoked")
 	}
 }

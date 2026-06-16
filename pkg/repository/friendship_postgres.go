@@ -128,6 +128,16 @@ func (r *FriendshipPostgres) GetFriendRequestList(userID int) ([]model.FriendInf
 	return append(incoming, outgoing...), nil
 }
 
+func (r *FriendshipPostgres) GetFriendshipStatus(userID, friendID int) (string, error) {
+	var status string
+	query := fmt.Sprintf(`
+		SELECT status FROM %s
+		WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)
+		LIMIT 1`, friendsTable)
+	err := r.db.Get(&status, query, userID, friendID)
+	return status, err
+}
+
 func (r *FriendshipPostgres) DeleteFriend(userID int, friendID int) error {
 	query := fmt.Sprintf("DELETE FROM %s WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)", friendsTable)
 

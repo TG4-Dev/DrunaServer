@@ -8,18 +8,20 @@ import (
 
 type Authorization interface {
 	CreateUser(user model.User) (int, error)
-	GenerateToken(tokenTTL time.Duration, user model.User) (string, error)
 	GenerateAccessRefreshToken(username, password string) (string, string, error)
+	ParseAccessToken(token string) (int, string, error)
 	ParseToken(token string) (int, string, error)
-	RenewToken(username string, userid int) (string, string, error)
+	RenewToken(refreshToken string) (string, string, error)
 	TelegramLogin(telegramID int64, name, username string) (string, string, error)
 	LoginWithTelegramInitData(initData string) (string, string, error)
+	SearchUsers(prefix string) ([]model.FriendInfo, error)
 }
 
 type Event interface {
 	CreateEvent(event model.Event) (int, error)
+	UpdateEvent(userID int, event model.Event) error
 	DeleteEvent(userID, eventID int) error
-	GetEventList(userID int) ([]model.Event, error)
+	GetEventList(userID int, filter model.EventFilter) (model.EventListResponse, error)
 	GetFreeTime(userID int, date time.Time) ([]model.TimeSlot, error)
 }
 
@@ -39,6 +41,26 @@ type Group interface {
 	ListGroups(userID int) ([]model.Group, error)
 	GetGroupDetails(groupID, userID int) (model.GroupDetails, error)
 	AddGroupMember(groupID, ownerID int, username string) error
+	DeleteGroup(groupID, ownerID int) error
+	LeaveGroup(groupID, userID int) error
+	ConfirmMemberTime(groupID, userID int, confirmedTime time.Time) error
+	GetGroupFreeTime(groupID, userID int, date time.Time) ([]model.TimeSlot, error)
+}
+
+type Health interface {
+	PingDB() error
+}
+
+type healthService struct {
+	tokenRepo repository.Token
+}
+
+func NewHealthService(tokenRepo repository.Token) *healthService {
+	return &healthService{tokenRepo: tokenRepo}
+}
+
+func (s *healthService) PingDB() error {
+	return s.tokenRepo.Ping()
 }
 
 type Service struct {
@@ -46,13 +68,15 @@ type Service struct {
 	Event
 	Friendship
 	Group
+	Health
 }
 
 func NewService(repos *repository.Repository) *Service {
 	return &Service{
-		Authorization: NewAuthService(repos.Authorization),
+		Authorization: NewAuthService(repos.Authorization, repos.Token),
 		Event:         NewEventService(repos.Event),
 		Friendship:    NewFriendshipService(repos.Friendship),
-		Group:         NewGroupService(repos.Group, repos.Friendship),
+		Group:         NewGroupService(repos.Group, repos.Friendship, repos.Event),
+		Health:        NewHealthService(repos.Token),
 	}
 }

@@ -1,0 +1,42 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: druna_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    networks:
+      - druna-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d druna_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: golang:1.24.3-alpine
+    working_dir: /app
+    command: sh -c "go install github.com/air-verse/air@latest && air -c .air.toml"
+    environment:
+      DB_PASSWORD: postgres
+      JWT_SECRET: changeme-dev-secret
+      BOT_TOKEN: ""
+      DATABASE_URL: postgres://postgres:postgres@db:5432/druna_db?sslmode=disable
+      CORS_ORIGINS: "*"
+    volumes:
+      - .:/app
+      - ./configs/config.docker.yaml:/app/configs/config.yaml
+    ports:
+      - "22000:22000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - druna-net
+
+networks:
+  druna-net:

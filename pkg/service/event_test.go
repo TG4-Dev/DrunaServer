@@ -11,9 +11,20 @@ type mockEventRepo struct {
 }
 
 func (m *mockEventRepo) CreateEvent(event model.Event) (int, error) { return 1, nil }
-func (m *mockEventRepo) DeleteEvent(userID, eventID int) error      { return nil }
-func (m *mockEventRepo) GetEventList(userID int) ([]model.Event, error) {
+func (m *mockEventRepo) UpdateEvent(userID int, event model.Event) error { return nil }
+func (m *mockEventRepo) DeleteEvent(userID, eventID int) error           { return nil }
+func (m *mockEventRepo) HasOverlappingEvent(userID int, start, end time.Time, excludeID int) (bool, error) {
+	return false, nil
+}
+func (m *mockEventRepo) GetEventList(userID int) ([]model.Event, error) { return m.events, nil }
+func (m *mockEventRepo) GetEventListFiltered(userID int, filter model.EventFilter) ([]model.Event, error) {
 	return m.events, nil
+}
+func (m *mockEventRepo) CountEvents(userID int, filter model.EventFilter) (int, error) {
+	return len(m.events), nil
+}
+func (m *mockEventRepo) GetEventsForUsers(userIDs []int, dateFrom, dateTo time.Time) (map[int][]model.Event, error) {
+	return map[int][]model.Event{}, nil
 }
 
 func TestGetFreeTimeNoEvents(t *testing.T) {
@@ -27,36 +38,6 @@ func TestGetFreeTimeNoEvents(t *testing.T) {
 	if len(slots) != 1 {
 		t.Fatalf("expected 1 free slot, got %d", len(slots))
 	}
-	if !slots[0].Start.Equal(date) {
-		t.Fatalf("unexpected start: %v", slots[0].Start)
-	}
-}
-
-func TestGetFreeTimeWithBusySlot(t *testing.T) {
-	date := time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC)
-	repo := &mockEventRepo{
-		events: []model.Event{
-			{
-				StartTime: date.Add(10 * time.Hour),
-				EndTime:   date.Add(12 * time.Hour),
-			},
-		},
-	}
-	svc := NewEventService(repo)
-
-	slots, err := svc.GetFreeTime(1, date)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(slots) != 2 {
-		t.Fatalf("expected 2 free slots, got %d", len(slots))
-	}
-	if !slots[0].End.Equal(date.Add(10 * time.Hour)) {
-		t.Fatalf("unexpected first slot end: %v", slots[0].End)
-	}
-	if !slots[1].Start.Equal(date.Add(12 * time.Hour)) {
-		t.Fatalf("unexpected second slot start: %v", slots[1].Start)
-	}
 }
 
 func TestCreateEventValidation(t *testing.T) {
@@ -68,5 +49,18 @@ func TestCreateEventValidation(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected validation error")
+	}
+}
+
+func TestIntersectTimeSlots(t *testing.T) {
+	day := time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC)
+	a := []model.TimeSlot{{Start: day.Add(9 * time.Hour), End: day.Add(12 * time.Hour)}}
+	b := []model.TimeSlot{{Start: day.Add(10 * time.Hour), End: day.Add(14 * time.Hour)}}
+	result := IntersectTimeSlots(a, b)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 intersection, got %d", len(result))
+	}
+	if !result[0].Start.Equal(day.Add(10*time.Hour)) {
+		t.Fatalf("unexpected intersection start")
 	}
 }

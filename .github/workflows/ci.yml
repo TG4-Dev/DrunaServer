@@ -28,8 +28,8 @@ jobs:
         env:
           JWT_SECRET: ci-test-secret-key
 
-      - name: Test
-        run: go test ./... -count=1
+      - name: Unit tests
+        run: go test ./pkg/... -count=1
         env:
           JWT_SECRET: ci-test-secret-key
 
@@ -37,3 +37,40 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: druna_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d druna_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+
+      - name: Install migrate
+        run: |
+          curl -L https://github.com/golang-migrate/migrate/releases/download/v4.18.1/migrate.linux-amd64.tar.gz | tar xz
+          sudo mv migrate /usr/local/bin/
+
+      - name: Run migrations
+        run: migrate -path migrations -database "postgres://postgres:postgres@localhost:5432/druna_test?sslmode=disable" up
+
+      - name: Integration tests
+        run: go test ./tests/integration/... -count=1
+        env:
+          JWT_SECRET: ci-test-secret-key
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/druna_test?sslmode=disable

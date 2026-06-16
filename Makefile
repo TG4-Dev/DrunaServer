@@ -2,7 +2,13 @@ APP_NAME=drunaServer
 DOCKER_COMPOSE=docker-compose -f docker-compose.yml
 MIGRATE_DB=postgres://postgres:postgres@db:5432/druna_db?sslmode=disable
 
-.PHONY: build up down migrate-up migrate-down test lint smoke
+.PHONY: build up down migrate-up migrate-down test lint smoke hook-install dev-up
+
+hook-install:
+	git config core.hooksPath .githooks
+
+dev-up:
+	docker compose -f docker-compose.dev.yml up
 
 build:
 	$(DOCKER_COMPOSE) build

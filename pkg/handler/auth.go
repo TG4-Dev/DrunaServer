@@ -8,24 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// @Summary SignUp
-// @Tags Auth
-// @Description create account
-// @ID create-account
-// @Accept json
-// @Produce json
-// @Param input body model.SignUpDoc true "account info"
-// @Success 200 {object} map[string]int
-// @Failure 404 {object} handler.ErrorResponse
-// @Failure 400 {object} handler.ErrorResponse
-// @Failure 500 {object} handler.ErrorResponse
-// @Failure default {object} handler.ErrorResponse
-// @Router /auth/sign-up [post]
 func (h *Handler) signUp(c *gin.Context) {
 	var input model.User
-
 	if err := c.BindJSON(&input); err != nil {
 		NewErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	if input.PasswordHash == "" && input.Password != "" {
+		input.PasswordHash = input.Password
+	}
+	if input.PasswordHash == "" && input.Password == "" {
+		NewErrorResponse(c, http.StatusBadRequest, "password is required")
 		return
 	}
 
@@ -35,66 +28,49 @@ func (h *Handler) signUp(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, map[string]interface{}{
-		"id": id,
-	})
+	Success(c, http.StatusOK, gin.H{"id": id})
 }
 
 type signInInput struct {
 	Username     string `json:"username" binding:"required"`
-	PasswordHash string `json:"passwordHash" binding:"required"`
+	Password     string `json:"password"`
+	PasswordHash string `json:"passwordHash"`
 }
 
 type renewTokenInput struct {
-	RefreshToken string `json:"refreshToken" binding:"required"`
+	RefreshToken string `json:"refreshToken"`
 }
 
-// @Summary SignIn
-// @Tags Auth
-// @Description sign in
-// @ID sign-in
-// @Accept json
-// @Produce json
-// @Param input body model.SignInDoc true "account info"
-// @Success 200 {object} map[string]string
-// @Failure 404 {object} handler.ErrorResponse
-// @Failure 400 {object} handler.ErrorResponse
-// @Failure 500 {object} handler.ErrorResponse
-// @Failure default {object} handler.ErrorResponse
-// @Router /auth/sign-in [post]
+func (in signInInput) password() string {
+	if in.Password != "" {
+		return in.Password
+	}
+	return in.PasswordHash
+}
+
 func (h *Handler) signIn(c *gin.Context) {
 	var input signInInput
-
 	if err := c.BindJSON(&input); err != nil {
 		NewErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	accessToken, refreshToken, err := h.services.Authorization.GenerateAccessRefreshToken(input.Username, input.PasswordHash)
-	if err != nil {
-		NewErrorResponse(c, http.StatusInternalServerError, err.Error())
+	if input.password() == "" {
+		NewErrorResponse(c, http.StatusBadRequest, "password or passwordHash is required")
 		return
 	}
 
-	c.JSON(http.StatusOK, map[string]interface{}{
+	accessToken, refreshToken, err := h.services.Authorization.GenerateAccessRefreshToken(input.Username, input.password())
+	if err != nil {
+		NewErrorResponse(c, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	Success(c, http.StatusOK, gin.H{
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
 	})
 }
 
-// @Summary RenewToken
-// @Tags Auth
-// @Description renew token
-// @ID renew-token
-// @Accept json
-// @Produce json
-// @Param input body model.RenewTokenDoc true "account info"
-// @Success 200 {object} map[string]string
-// @Failure 404 {object} handler.ErrorResponse
-// @Failure 400 {object} handler.ErrorResponse
-// @Failure 500 {object} handler.ErrorResponse
-// @Failure default {object} handler.ErrorResponse
-// @Router /auth/renew-token [post]
 func (h *Handler) renewToken(c *gin.Context) {
 	var input renewTokenInput
 	_ = c.ShouldBindJSON(&input)
@@ -106,7 +82,6 @@ func (h *Handler) renewToken(c *gin.Context) {
 			NewErrorResponse(c, http.StatusUnauthorized, "empty auth header or refreshToken in body")
 			return
 		}
-
 		headerParts := strings.Split(header, " ")
 		if len(headerParts) != 2 || headerParts[0] != "Bearer" {
 			NewErrorResponse(c, http.StatusUnauthorized, "invalid auth header")
@@ -114,47 +89,27 @@ func (h *Handler) renewToken(c *gin.Context) {
 		}
 		token = headerParts[1]
 	}
-
 	if token == "" {
 		NewErrorResponse(c, http.StatusUnauthorized, "token is empty")
 		return
 	}
 
-	userID, Username, err := h.services.Authorization.ParseToken(token)
+	accessToken, refreshToken, err := h.services.Authorization.RenewToken(token)
 	if err != nil {
 		NewErrorResponse(c, http.StatusUnauthorized, err.Error())
 		return
 	}
 
-	accessToken, refreshToken, err := h.services.Authorization.RenewToken(Username, userID)
-	if err != nil {
-		NewErrorResponse(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	c.JSON(http.StatusOK, map[string]interface{}{
+	Success(c, http.StatusOK, gin.H{
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
 	})
 }
 
-// @Summary TelegramAuth
-// @Tags Auth
-// @Description authenticate via Telegram WebApp initData
-// @ID telegram-auth
-// @Accept json
-// @Produce json
-// @Param input body model.TelegramAuthDoc true "Telegram init data"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} handler.ErrorResponse
-// @Failure 401 {object} handler.ErrorResponse
-// @Failure 500 {object} handler.ErrorResponse
-// @Router /auth/telegram [post]
 func (h *Handler) telegramAuth(c *gin.Context) {
 	var input struct {
 		InitData string `json:"initData" binding:"required"`
 	}
-
 	if err := c.BindJSON(&input); err != nil {
 		NewErrorResponse(c, http.StatusBadRequest, "invalid request body")
 		return
@@ -166,7 +121,7 @@ func (h *Handler) telegramAuth(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	Success(c, http.StatusOK, gin.H{
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
 	})

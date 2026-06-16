@@ -9,44 +9,49 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// @Summary Get event List
-// @Security ApiKeyAuth
-// @Tags events
-// @Description Get current user's event list
-// @ID get-events
-// @Produce  json
-// @Success 200 {array} model.EventDoc
-// @Failure 400,404 {object} handler.ErrorResponse
-// @Failure 500 {object} handler.ErrorResponse
-// @Failure default {object} handler.ErrorResponse
-// @Router /api/events [get]
 func (h *Handler) getEventList(c *gin.Context) {
 	userID := h.getUserIdFromToken(c)
 	if userID == 0 {
 		return
 	}
 
-	eventList, err := h.services.GetEventList(userID)
-	if err != nil {
-		NewErrorResponse(c, http.StatusInternalServerError, "failed to fetch event: "+err.Error())
-		return
+	filter := model.EventFilter{Limit: 50}
+	if limitStr := c.Query("limit"); limitStr != "" {
+		if limit, err := strconv.Atoi(limitStr); err == nil {
+			filter.Limit = limit
+		}
+	}
+	if offsetStr := c.Query("offset"); offsetStr != "" {
+		if offset, err := strconv.Atoi(offsetStr); err == nil {
+			filter.Offset = offset
+		}
+	}
+	filter.Type = c.Query("type")
+	if from := c.Query("dateFrom"); from != "" {
+		t, err := time.Parse(time.RFC3339, from)
+		if err != nil {
+			NewErrorResponse(c, http.StatusBadRequest, "dateFrom must be RFC3339")
+			return
+		}
+		filter.DateFrom = &t
+	}
+	if to := c.Query("dateTo"); to != "" {
+		t, err := time.Parse(time.RFC3339, to)
+		if err != nil {
+			NewErrorResponse(c, http.StatusBadRequest, "dateTo must be RFC3339")
+			return
+		}
+		filter.DateTo = &t
 	}
 
-	c.JSON(http.StatusOK, eventList)
+	result, err := h.services.Event.GetEventList(userID, filter)
+	if err != nil {
+		NewErrorResponse(c, http.StatusInternalServerError, "failed to fetch events: "+err.Error())
+		return
+	}
+	Success(c, http.StatusOK, result)
 }
 
-// @Summary Get free time slots
-// @Security ApiKeyAuth
-// @Tags events
-// @Description Get free time slots for a given day
-// @ID get-free-time
-// @Accept json
-// @Produce json
-// @Param input body model.FreeTimeInputDoc true "date"
-// @Success 200 {object} model.FreeTimeResponseDoc
-// @Failure 400 {object} handler.ErrorResponse
-// @Failure 500 {object} handler.ErrorResponse
-// @Router /api/events/free-time [post]
 func (h *Handler) getFreeTime(c *gin.Context) {
 	userID := h.getUserIdFromToken(c)
 	if userID == 0 {
@@ -72,97 +77,72 @@ func (h *Handler) getFreeTime(c *gin.Context) {
 		NewErrorResponse(c, http.StatusInternalServerError, "failed to compute free time: "+err.Error())
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"freeSlots": slots,
-	})
+	Success(c, http.StatusOK, gin.H{"freeSlots": slots})
 }
 
-// @Summary Create Event
-// @Security ApiKeyAuth
-// @Tags events
-// @Description Create event
-// @ID create-event
-// @Accept  json
-// @Produce  json
-// @Param input body model.EventDoc true "list info"
-// @Success 200 {object} model.AddEventDoc
-// @Failure 400,404 {object} handler.ErrorResponse
-// @Failure 500 {object} handler.ErrorResponse
-// @Failure default {object} handler.ErrorResponse
-// @Router /api/events/ [post]
 func (h *Handler) addEvent(c *gin.Context) {
-	id, ok := c.Get(userCtx)
-	if !ok {
-		NewErrorResponse(c, http.StatusInternalServerError, "user id not found")
+	userID := h.getUserIdFromToken(c)
+	if userID == 0 {
 		return
 	}
 
 	var input model.Event
+	if err := c.BindJSON(&input); err != nil {
+		NewErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	input.UserID = userID
 
-	err := c.BindJSON(&input)
+	eventID, err := h.services.Event.CreateEvent(input)
 	if err != nil {
 		NewErrorResponse(c, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	userID, ok := id.(int)
-	if !ok {
-		NewErrorResponse(c, http.StatusInternalServerError, "user id is of invalid type")
-		return
-	}
-
-	input.UserID = userID
-
-	eventId, err := h.services.Event.CreateEvent(input)
-	if err != nil {
-		NewErrorResponse(c, http.StatusInternalServerError, "failed to create event:"+err.Error())
-		return
-	}
-
-	c.JSON(http.StatusOK, map[string]interface{}{
-		"eventId": eventId,
-	})
+	Success(c, http.StatusOK, gin.H{"eventId": eventID})
 }
 
-// @Summary Delete Event
-// @Security ApiKeyAuth
-// @Tags events
-// @Description Delete event by ID
-// @ID delete-event
-// @Produce json
-// @Param id path int true "Event ID"
-// @Success 200 {object} map[string]string
-// @Failure 400 {object} handler.ErrorResponse
-// @Failure 403 {object} handler.ErrorResponse
-// @Failure 500 {object} handler.ErrorResponse
-// @Router /api/events/{id} [delete]
-func (h *Handler) deleteEvent(c *gin.Context) {
-	userIDInterface, ok := c.Get(userCtx)
-	if !ok {
-		NewErrorResponse(c, http.StatusUnauthorized, "user id not found")
-		return
-	}
-	userID, ok := userIDInterface.(int)
-	if !ok {
-		NewErrorResponse(c, http.StatusInternalServerError, "user id type is invalid")
+func (h *Handler) updateEvent(c *gin.Context) {
+	userID := h.getUserIdFromToken(c)
+	if userID == 0 {
 		return
 	}
 
-	eventIDParam := c.Param("id")
-	eventID, err := strconv.Atoi(eventIDParam)
+	eventID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		NewErrorResponse(c, http.StatusBadRequest, "invalid event id")
 		return
 	}
 
-	err = h.services.Event.DeleteEvent(userID, eventID)
-	if err != nil {
-		NewErrorResponse(c, http.StatusForbidden, err.Error())
+	var input model.Event
+	if err := c.BindJSON(&input); err != nil {
+		NewErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	input.ID = eventID
+	input.UserID = userID
+
+	if err := h.services.Event.UpdateEvent(userID, input); err != nil {
+		NewErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+	Success(c, http.StatusOK, gin.H{"message": "event updated"})
+}
+
+func (h *Handler) deleteEvent(c *gin.Context) {
+	userID := h.getUserIdFromToken(c)
+	if userID == 0 {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "event deleted",
-	})
+	eventID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		NewErrorResponse(c, http.StatusBadRequest, "invalid event id")
+		return
+	}
+
+	if err := h.services.Event.DeleteEvent(userID, eventID); err != nil {
+		NewErrorResponse(c, http.StatusForbidden, err.Error())
+		return
+	}
+	Success(c, http.StatusOK, gin.H{"message": "event deleted"})
 }

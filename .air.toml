@@ -1,0 +1,19 @@
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/drunaServer ./cmd/main.go"
+  bin = "./tmp/drunaServer"
+  include_ext = ["go", "yaml"]
+  exclude_dir = ["tmp", "vendor", "docs"]
+  delay = 1000
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true
+
+[screen]
+  clear_on_rebuild = true

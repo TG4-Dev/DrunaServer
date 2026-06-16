@@ -1,144 +1,179 @@
 # Druna Server
 
-Druna is a backend service for managing users, events, friends, and groups. It provides a RESTful API using Go (Golang), Gin, and PostgreSQL, with support for JWT authentication and Swagger-based documentation.
+Backend REST API for the Druna app: users, events, friends, and groups.
 
 ## Features
 
-- User registration and login
-- JWT-based authentication (bcrypt password hashing)
-- Telegram WebApp authentication
-- Event creation, listing, deletion, and free-time calculation
-- Friendship management (request, accept, reject, list, incoming/outgoing)
-- Groups: create, list, details, add members
-- CORS and auth rate limiting
-- Swagger API documentation
-- CI (GitHub Actions) and unit tests
+- JWT auth with separate access/refresh tokens, rotation, and revocation
+- Telegram WebApp login
+- Events with overlap validation, filters, pagination, and free-time slots
+- Friends with search, incoming/outgoing requests, and reject blocking
+- Groups with members, time confirmation, group free-time, leave/delete
+- Unified JSON response envelope
+- Prometheus metrics and health check with DB probe
+- GitHub Actions CI (unit + Postgres integration tests)
 
-## Tech Stack
+## Tech stack
 
-- Go (Golang)
-- Gin Web Framework
-- PostgreSQL
-- JWT (Authorization)
-- Swaggo (Swagger documentation)
+Go 1.24 · Gin · PostgreSQL · JWT · Swagger · Docker
 
-## Installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/yourusername/DrunaServer.git
-cd DrunaServer
-```
-
-### 2. Install the dependencies
+## Quick start
 
 ```bash
 go mod tidy
-```
-
-### 3. Setup configuration
-
-```bash
 cp configs/config.yaml.example configs/config.yaml
 cp .env.example .env
-```
-
-Edit `.env`:
-
-```
-DB_PASSWORD=yourpassword
-JWT_SECRET=your-secret-key-at-least-32-chars
-BOT_TOKEN=          # required for Telegram auth
-CORS_ORIGINS=*      # optional, comma-separated origins
-```
-
-Database settings are in `configs/config.yaml` (host, port, dbname).
-
-### 4. Run the server
-
-```bash
+# edit .env: DB_PASSWORD, JWT_SECRET
 go run cmd/main.go
 ```
+
+Default port: `8000` (from `configs/config.yaml`).
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DB_PASSWORD` | Yes | PostgreSQL password |
+| `JWT_SECRET` | Yes | JWT signing key |
+| `BOT_TOKEN` | For Telegram | Telegram bot token |
+| `CORS_ORIGINS` | No | Comma-separated origins (default `*`) |
+| `DATABASE_URL` | Docker | Used by entrypoint for auto-migrations |
+| `TEST_DATABASE_URL` | Tests | DSN for integration tests |
+
+Database host/port/dbname are configured in `configs/config.yaml`.
+
+## Response format
+
+Success:
+
+```json
+{ "data": { "accessToken": "...", "refreshToken": "..." }, "error": null }
+```
+
+Error:
+
+```json
+{ "data": null, "error": { "message": "invalid credentials", "code": 401 } }
+```
+
+## Authentication
+
+Sign in:
+
+```bash
+curl -X POST http://localhost:8000/auth/sign-in \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alice","password":"secret"}'
+```
+
+Use the access token for protected routes:
+
+```
+Authorization: Bearer <accessToken>
+```
+
+Renew (refresh token rotation):
+
+```bash
+curl -X POST http://localhost:8000/auth/renew-token \
+  -H "Content-Type: application/json" \
+  -d '{"refreshToken":"<refreshToken>"}'
+```
+
+Only **access** tokens work on `/api/*`. Refresh tokens are rejected by the auth middleware.
 
 ## Docker
 
 ```bash
-make build
-make up
+make build && make up     # app on http://localhost:22000, migrations run on start
+make dev-up               # hot reload via air (docker-compose.dev.yml)
+make migrate-up           # manual migrations in running compose network
+make down
 ```
 
-Migrations run automatically when the app container starts. App: `http://localhost:22000`
-
-Manual migration (optional):
+## Testing & quality
 
 ```bash
+make test                 # all unit tests
+make lint                 # golangci-lint
+make smoke                # end-to-end curl script (server must be running)
+make hook-install         # install git pre-commit hook
+
+# integration tests (Postgres required)
 make migrate-up
+TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/druna_db?sslmode=disable' \
+  go test ./tests/integration/... -count=1
 ```
 
-## Testing
-
-```bash
-make test    # unit tests
-make lint    # golangci-lint
-make smoke   # curl smoke test (server must be running on BASE_URL)
-```
-
-## API Documentation
+## Swagger
 
 ```bash
 go install github.com/swaggo/swag/cmd/swag@latest
 swag init -g cmd/main.go
 ```
 
-Swagger UI: `http://localhost:8000/swagger/index.html` (or port from config)
+UI: `http://localhost:8000/swagger/index.html`
 
-Documentation models are defined in `pkg/model/structs_doc.go`.
+## API routes
 
-## Authentication
+All protected routes are available under **`/api/v1/...`** and legacy **`/api/...`**.
 
-Use the JWT access token from `/auth/sign-in` in the `Authorization` header for all `/api/*` requests:
+### Public
 
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /ping/ | Health check (`status`, `db`) |
+| GET | /metrics | Prometheus metrics |
+| GET | /swagger/* | Swagger UI |
+| POST | /auth/sign-up | Register |
+| POST | /auth/sign-in | Login |
+| POST | /auth/renew-token | Refresh token rotation |
+| POST | /auth/telegram | Telegram WebApp login |
+
+### Events (auth required)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/v1/events/ | List events (`limit`, `offset`, `type`, `dateFrom`, `dateTo`) |
+| POST | /api/v1/events/ | Create event |
+| PATCH | /api/v1/events/:id | Update event |
+| DELETE | /api/v1/events/:id | Delete event |
+| POST | /api/v1/events/free-time | Personal free slots for a day |
+
+### Friends (auth required)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/v1/friends/list | Friend list |
+| GET | /api/v1/friends/search?username= | Search users by username prefix |
+| GET | /api/v1/friends/request-list | All pending requests |
+| GET | /api/v1/friends/requests/incoming | Incoming requests |
+| GET | /api/v1/friends/requests/outgoing | Outgoing requests |
+| POST | /api/v1/friends/request | Send request |
+| POST | /api/v1/friends/accept | Accept request |
+| POST | /api/v1/friends/reject | Reject request |
+| DELETE | /api/v1/friends/ | Remove friend |
+
+### Groups (auth required)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/v1/groups/create | Create group |
+| GET | /api/v1/groups/list | List user groups |
+| GET | /api/v1/groups/:id | Group details with members |
+| DELETE | /api/v1/groups/:id | Delete group (owner only) |
+| POST | /api/v1/groups/:id/leave | Leave group |
+| POST | /api/v1/groups/:id/members | Add member (owner only) |
+| POST | /api/v1/groups/:id/confirm | Confirm proposed time |
+| POST | /api/v1/groups/:id/free-time | Intersection of members' free slots |
+
+## Migrations
+
+Applied automatically in Docker via `docker-entrypoint.sh`, or manually:
+
+```bash
+make migrate-up
+make migrate-down
 ```
-Authorization: Bearer <accessToken>
-```
-
-Renew tokens via `POST /auth/renew-token` with either:
-
-```json
-{ "refreshToken": "<refresh token>" }
-```
-
-or `Authorization: Bearer <refresh token>` header.
-
-Telegram WebApp auth: `POST /auth/telegram` with `{ "initData": "<telegram init data>" }`.
-
-**Note:** Password hashing uses bcrypt. Existing users created before this change must re-register.
-
-## Endpoints
-
-| Method | Path                          | Auth | Description                   |
-| ------ | ----------------------------- | ---- | ----------------------------- |
-| GET    | /ping/                        | No   | Health check                  |
-| POST   | /auth/sign-up                 | No   | Register a new user           |
-| POST   | /auth/sign-in                 | No   | Login and get JWT             |
-| POST   | /auth/renew-token             | No   | Renew JWT tokens              |
-| POST   | /auth/telegram                | No   | Telegram WebApp login         |
-| GET    | /api/events/                  | Yes  | List user events              |
-| POST   | /api/events/                  | Yes  | Create an event               |
-| DELETE | /api/events/:id               | Yes  | Delete an event               |
-| POST   | /api/events/free-time         | Yes  | Free time slots for a day     |
-| GET    | /api/friends/list             | Yes  | List friends                  |
-| GET    | /api/friends/request-list     | Yes  | All pending requests          |
-| GET    | /api/friends/requests/incoming| Yes  | Incoming friend requests      |
-| GET    | /api/friends/requests/outgoing| Yes  | Outgoing friend requests      |
-| POST   | /api/friends/request          | Yes  | Send a friend request         |
-| POST   | /api/friends/accept           | Yes  | Accept a friend request       |
-| POST   | /api/friends/reject           | Yes  | Reject a friend request       |
-| DELETE | /api/friends/                 | Yes  | Remove a friend               |
-| POST   | /api/groups/create            | Yes  | Create a group                |
-| GET    | /api/groups/list              | Yes  | List user groups              |
-| GET    | /api/groups/:id               | Yes  | Group details with members    |
-| POST   | /api/groups/:id/members       | Yes  | Add member (owner only)       |
 
 See [AGENTS.md](AGENTS.md) for development conventions.

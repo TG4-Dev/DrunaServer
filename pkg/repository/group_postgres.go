@@ -88,7 +88,7 @@ func (r *GroupPostgres) GetGroupDetails(groupID, userID int) (model.GroupDetails
 	}
 
 	membersQuery := `
-		SELECT u.id, u.name, u.username
+		SELECT u.id, u.name, u.username, gm.confirmed_time
 		FROM group_members gm
 		JOIN users u ON gm.user_id = u.id
 		WHERE gm.group_id = $1
@@ -126,4 +126,66 @@ func (r *GroupPostgres) IsGroupMember(groupID, userID int) (bool, error) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (r *GroupPostgres) GetMemberUserIDs(groupID int) ([]int, error) {
+	var ids []int
+	query := `SELECT user_id FROM group_members WHERE group_id = $1 ORDER BY user_id`
+	if err := r.db.Select(&ids, query, groupID); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (r *GroupPostgres) DeleteGroup(groupID, ownerID int) error {
+	var owner int
+	if err := r.db.Get(&owner, fmt.Sprintf("SELECT owner_id FROM %s WHERE id = $1", groupTable), groupID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("group not found")
+		}
+		return err
+	}
+	if owner != ownerID {
+		return errors.New("only group owner can delete the group")
+	}
+	_, err := r.db.Exec(fmt.Sprintf("DELETE FROM %s WHERE id = $1", groupTable), groupID)
+	return err
+}
+
+func (r *GroupPostgres) LeaveGroup(groupID, userID int) error {
+	var owner int
+	if err := r.db.Get(&owner, fmt.Sprintf("SELECT owner_id FROM %s WHERE id = $1", groupTable), groupID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("group not found")
+		}
+		return err
+	}
+	if owner == userID {
+		return errors.New("group owner cannot leave; delete the group instead")
+	}
+	result, err := r.db.Exec(`DELETE FROM group_members WHERE group_id = $1 AND user_id = $2`, groupID, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return errors.New("you are not a member of this group")
+	}
+	return nil
+}
+
+func (r *GroupPostgres) ConfirmMemberTime(groupID, userID int, confirmedTime time.Time) error {
+	isMember, err := r.IsGroupMember(groupID, userID)
+	if err != nil {
+		return err
+	}
+	if !isMember {
+		return errors.New("you are not a member of this group")
+	}
+	_, err = r.db.Exec(`UPDATE group_members SET confirmed_time = $1 WHERE group_id = $2 AND user_id = $3`,
+		confirmedTime, groupID, userID)
+	return err
 }

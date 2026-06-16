@@ -5,12 +5,26 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 const (
 	authorizationHeader = "Authorization"
 	userCtx             = "userID"
+	requestIDKey        = "requestID"
 )
+
+func requestIDMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestID := c.GetHeader("X-Request-ID")
+		if requestID == "" {
+			requestID = uuid.New().String()
+		}
+		c.Set(requestIDKey, requestID)
+		c.Header("X-Request-ID", requestID)
+		c.Next()
+	}
+}
 
 func (h *Handler) userIdentity(c *gin.Context) {
 	header := c.GetHeader(authorizationHeader)
@@ -30,7 +44,7 @@ func (h *Handler) userIdentity(c *gin.Context) {
 		return
 	}
 
-	userId, _, err := h.services.Authorization.ParseToken(headerParts[1])
+	userId, _, err := h.services.Authorization.ParseAccessToken(headerParts[1])
 	if err != nil {
 		NewErrorResponse(c, http.StatusUnauthorized, err.Error())
 		return

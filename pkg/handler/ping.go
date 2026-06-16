@@ -7,7 +7,20 @@ import (
 )
 
 func (h *Handler) ping(c *gin.Context) {
-	c.JSON(http.StatusOK, map[string]interface{}{
-		"id": 0,
+	status := "ok"
+	dbStatus := "ok"
+	if err := h.services.Health.PingDB(); err != nil {
+		dbStatus = "error"
+		status = "degraded"
+	}
+
+	code := http.StatusOK
+	if dbStatus == "error" {
+		code = http.StatusServiceUnavailable
+	}
+
+	Success(c, code, gin.H{
+		"status": status,
+		"db":     dbStatus,
 	})
 }

@@ -25,6 +25,8 @@ func NewHandler(services *service.Service) *Handler {
 func (h *Handler) InitRoutes() *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
+	router.Use(requestIDMiddleware())
+	router.Use(metricsMiddleware())
 	router.Use(corsMiddleware())
 
 	authLimiter := NewRateLimiter(30)
@@ -34,7 +36,9 @@ func (h *Handler) InitRoutes() *gin.Engine {
 		ping.GET("/", h.ping)
 	}
 
+	registerMetricsRoute(router)
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	auth := router.Group("/auth", authLimiter.Middleware())
 	{
 		auth.POST("/sign-up", h.signUp)
@@ -43,37 +47,49 @@ func (h *Handler) InitRoutes() *gin.Engine {
 		auth.POST("/telegram", h.telegramAuth)
 	}
 
+	apiV1 := router.Group("/api/v1", h.userIdentity)
+	h.registerProtectedRoutes(apiV1)
+
 	api := router.Group("/api", h.userIdentity)
-	{
-		friends := api.Group("/friends")
-		{
-			friends.GET("/list", h.getFriendList)
-			friends.GET("/request-list", h.getFriendRequestList)
-			friends.GET("/requests/incoming", h.getIncomingFriendRequests)
-			friends.GET("/requests/outgoing", h.getOutgoingFriendRequests)
-			friends.POST("/request", h.sendFriendRequest)
-			friends.POST("/accept", h.acceptFriendRequest)
-			friends.POST("/reject", h.rejectFriendRequest)
-			friends.DELETE("/", h.deleteFriend)
-		}
+	h.registerProtectedRoutes(api)
 
-		events := api.Group("/events")
-		{
-			events.GET("/", h.getEventList)
-			events.POST("/", h.addEvent)
-			events.DELETE("/:id", h.deleteEvent)
-			events.POST("/free-time", h.getFreeTime)
-		}
-
-		groups := api.Group("/groups")
-		{
-			groups.POST("/create", h.createGroup)
-			groups.GET("/list", h.listGroups)
-			groups.GET("/:id", h.getGroup)
-			groups.POST("/:id/members", h.addGroupMember)
-		}
-	}
 	return router
+}
+
+func (h *Handler) registerProtectedRoutes(api *gin.RouterGroup) {
+	friends := api.Group("/friends")
+	{
+		friends.GET("/list", h.getFriendList)
+		friends.GET("/search", h.searchUsers)
+		friends.GET("/request-list", h.getFriendRequestList)
+		friends.GET("/requests/incoming", h.getIncomingFriendRequests)
+		friends.GET("/requests/outgoing", h.getOutgoingFriendRequests)
+		friends.POST("/request", h.sendFriendRequest)
+		friends.POST("/accept", h.acceptFriendRequest)
+		friends.POST("/reject", h.rejectFriendRequest)
+		friends.DELETE("/", h.deleteFriend)
+	}
+
+	events := api.Group("/events")
+	{
+		events.GET("/", h.getEventList)
+		events.POST("/", h.addEvent)
+		events.PATCH("/:id", h.updateEvent)
+		events.DELETE("/:id", h.deleteEvent)
+		events.POST("/free-time", h.getFreeTime)
+	}
+
+	groups := api.Group("/groups")
+	{
+		groups.POST("/create", h.createGroup)
+		groups.GET("/list", h.listGroups)
+		groups.GET("/:id", h.getGroup)
+		groups.DELETE("/:id", h.deleteGroup)
+		groups.POST("/:id/leave", h.leaveGroup)
+		groups.POST("/:id/members", h.addGroupMember)
+		groups.POST("/:id/confirm", h.confirmGroupTime)
+		groups.POST("/:id/free-time", h.getGroupFreeTime)
+	}
 }
 
 func corsMiddleware() gin.HandlerFunc {
@@ -85,8 +101,8 @@ func corsMiddleware() gin.HandlerFunc {
 	return cors.New(cors.Config{
 		AllowOrigins:     strings.Split(origins, ","),
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Request-ID"},
+		ExposeHeaders:    []string{"Content-Length", "X-Request-ID"},
 		AllowCredentials: origins != "*",
 		MaxAge:           12 * 3600,
 	})

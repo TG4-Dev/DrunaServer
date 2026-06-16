@@ -7,9 +7,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+type mockTokenRepo struct{}
+
+func (mockTokenRepo) RevokeToken(string, time.Time) error { return nil }
+func (mockTokenRepo) IsTokenRevoked(string) (bool, error) { return false, nil }
+func (mockTokenRepo) Ping() error                         { return nil }
 
 func TestMain(m *testing.M) {
 	os.Setenv("JWT_SECRET", "test-secret-key-for-unit-tests-only")
@@ -18,7 +25,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestPingEndpoint(t *testing.T) {
-	services := service.NewService(&repository.Repository{})
+	repos := &repository.Repository{Token: mockTokenRepo{}}
+	services := service.NewService(repos)
 	h := NewHandler(services)
 	router := h.InitRoutes()
 
@@ -27,6 +35,6 @@ func TestPingEndpoint(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
