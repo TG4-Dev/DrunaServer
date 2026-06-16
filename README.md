@@ -177,3 +177,7 @@ make migrate-down
 ```
 
 See [AGENTS.md](AGENTS.md) for development conventions.
+
+## Frontend integration
+
+See [docs/FRONTEND_API.md](docs/FRONTEND_API.md) for the complete API contract for client apps (auth flow, request/response shapes, TypeScript sketch).

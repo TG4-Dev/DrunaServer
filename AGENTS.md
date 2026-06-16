@@ -76,7 +76,7 @@ Do not return raw `gin.H{"error": ...}` in new code.
 2. Add service method in `pkg/service/` + interface in `service.go`
 3. Add handler in `pkg/handler/` and register in `registerProtectedRoutes()` or auth group in `handler.go`
 4. Add Swagger annotations; run `swag init -g cmd/main.go`
-5. Update `README.md` endpoint table
+5. Update `README.md` endpoint table and `docs/FRONTEND_API.md` for client-facing changes
 6. Add unit tests; integration test if DB logic is involved
 
 ## Makefile targets
