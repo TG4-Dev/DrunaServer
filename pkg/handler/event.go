@@ -4,6 +4,7 @@ import (
 	"druna_server/pkg/model"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,16 +26,6 @@ func (h *Handler) getEventList(c *gin.Context) {
 		return
 	}
 
-	idStr := c.Query("id")
-	if idStr != "" { // Если ничего не передано в запросе, вернёт список по id из token
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
-			c.JSON(400, gin.H{"error": "ID must be a number"})
-			return
-		}
-		userID = id
-	}
-
 	eventList, err := h.services.GetEventList(userID)
 	if err != nil {
 		NewErrorResponse(c, http.StatusInternalServerError, "failed to fetch event: "+err.Error())
@@ -44,8 +35,47 @@ func (h *Handler) getEventList(c *gin.Context) {
 	c.JSON(http.StatusOK, eventList)
 }
 
+// @Summary Get free time slots
+// @Security ApiKeyAuth
+// @Tags events
+// @Description Get free time slots for a given day
+// @ID get-free-time
+// @Accept json
+// @Produce json
+// @Param input body model.FreeTimeInputDoc true "date"
+// @Success 200 {object} model.FreeTimeResponseDoc
+// @Failure 400 {object} handler.ErrorResponse
+// @Failure 500 {object} handler.ErrorResponse
+// @Router /api/events/free-time [post]
 func (h *Handler) getFreeTime(c *gin.Context) {
+	userID := h.getUserIdFromToken(c)
+	if userID == 0 {
+		return
+	}
 
+	var input struct {
+		Date string `json:"date" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		NewErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	date, err := time.Parse("2006-01-02", input.Date)
+	if err != nil {
+		NewErrorResponse(c, http.StatusBadRequest, "date must be in YYYY-MM-DD format")
+		return
+	}
+
+	slots, err := h.services.Event.GetFreeTime(userID, date)
+	if err != nil {
+		NewErrorResponse(c, http.StatusInternalServerError, "failed to compute free time: "+err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"freeSlots": slots,
+	})
 }
 
 // @Summary Create Event
@@ -65,6 +95,7 @@ func (h *Handler) addEvent(c *gin.Context) {
 	id, ok := c.Get(userCtx)
 	if !ok {
 		NewErrorResponse(c, http.StatusInternalServerError, "user id not found")
+		return
 	}
 
 	var input model.Event
@@ -75,37 +106,37 @@ func (h *Handler) addEvent(c *gin.Context) {
 		return
 	}
 
+	userID, ok := id.(int)
 	if !ok {
 		NewErrorResponse(c, http.StatusInternalServerError, "user id is of invalid type")
 		return
 	}
 
-	input.UserID = id.(int)
+	input.UserID = userID
 
 	eventId, err := h.services.Event.CreateEvent(input)
 	if err != nil {
 		NewErrorResponse(c, http.StatusInternalServerError, "failed to create event:"+err.Error())
+		return
 	}
 
 	c.JSON(http.StatusOK, map[string]interface{}{
 		"eventId": eventId,
 	})
-
 }
 
 // @Summary Delete Event
 // @Security ApiKeyAuth
 // @Tags events
-// @Description Create event
+// @Description Delete event by ID
 // @ID delete-event
-// @Accept  json
-// @Produce  json
-// @Param input body model.DeleteEventDoc true "list info"
-// @Success 200 {object} model.AddEventDoc
-// @Failure 400,404 {object} handler.ErrorResponse
+// @Produce json
+// @Param id path int true "Event ID"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} handler.ErrorResponse
+// @Failure 403 {object} handler.ErrorResponse
 // @Failure 500 {object} handler.ErrorResponse
-// @Failure default {object} handler.ErrorResponse
-// @Router /api/events/ [delete]
+// @Router /api/events/{id} [delete]
 func (h *Handler) deleteEvent(c *gin.Context) {
 	userIDInterface, ok := c.Get(userCtx)
 	if !ok {

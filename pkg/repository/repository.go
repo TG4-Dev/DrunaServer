@@ -9,10 +9,8 @@ import (
 
 type Authorization interface {
 	CreateUser(user model.User) (int, error)
-	GetUser(username, passwordHash string) (model.User, error)
-}
-
-type User interface {
+	GetUserByUsername(username string) (model.User, error)
+	GetUserByTelegramID(telegramID int64) (model.User, error)
 }
 
 type Event interface {
@@ -27,17 +25,21 @@ type Friendship interface {
 	RejectFriendRequest(userID int, friendID int) error
 	ExistsByUsername(username string) (int, error)
 	GetFriendList(userID int) ([]model.FriendInfo, error)
+	GetIncomingFriendRequests(userID int) ([]model.FriendInfo, error)
+	GetOutgoingFriendRequests(userID int) ([]model.FriendInfo, error)
 	GetFriendRequestList(userID int) ([]model.FriendInfo, error)
 	DeleteFriend(userID int, friendID int) error
 }
 
 type Group interface {
 	CreateGroup(input model.Group) (int, error)
+	ListGroups(userID int) ([]model.Group, error)
+	GetGroupDetails(groupID, userID int) (model.GroupDetails, error)
+	AddGroupMember(groupID, ownerID, memberID int) error
 }
 
 type Repository struct {
 	Authorization
-	User
 	Event
 	Friendship
 	Group

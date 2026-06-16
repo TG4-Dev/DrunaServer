@@ -1,0 +1,68 @@
+package handler
+
+import (
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"golang.org/x/time/rate"
+)
+
+type ipLimiter struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+type RateLimiter struct {
+	ips map[string]*ipLimiter
+	mu  sync.Mutex
+	r   rate.Limit
+	b   int
+}
+
+func NewRateLimiter(requestsPerMinute int) *RateLimiter {
+	return &RateLimiter{
+		ips: make(map[string]*ipLimiter),
+		r:   rate.Every(time.Minute / time.Duration(requestsPerMinute)),
+		b:   requestsPerMinute,
+	}
+}
+
+func (rl *RateLimiter) getLimiter(ip string) *rate.Limiter {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	limiter, exists := rl.ips[ip]
+	if !exists {
+		limiter = &ipLimiter{limiter: rate.NewLimiter(rl.r, rl.b), lastSeen: time.Now()}
+		rl.ips[ip] = limiter
+	}
+	limiter.lastSeen = time.Now()
+	return limiter.limiter
+}
+
+func (rl *RateLimiter) Middleware() gin.HandlerFunc {
+	go rl.cleanup()
+	return func(c *gin.Context) {
+		ip := c.ClientIP()
+		if !rl.getLimiter(ip).Allow() {
+			NewErrorResponse(c, http.StatusTooManyRequests, "rate limit exceeded")
+			return
+		}
+		c.Next()
+	}
+}
+
+func (rl *RateLimiter) cleanup() {
+	for {
+		time.Sleep(time.Minute)
+		rl.mu.Lock()
+		for ip, limiter := range rl.ips {
+			if time.Since(limiter.lastSeen) > 3*time.Minute {
+				delete(rl.ips, ip)
+			}
+		}
+		rl.mu.Unlock()
+	}
+}

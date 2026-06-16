@@ -14,6 +14,10 @@ type SignInDoc struct {
 	PasswordHash string `json:"passwordHash"`
 }
 
+type RenewTokenDoc struct {
+	RefreshToken string `json:"refreshToken"`
+}
+
 type EventDoc struct {
 	ID        int       `json:"eventID"`
 	StartTime time.Time `json:"startTime" binding:"required"`
@@ -28,4 +32,25 @@ type DeleteEventDoc struct {
 
 type AddEventDoc struct {
 	ID int `json:"Id"`
+}
+
+type TimeSlot struct {
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
+}
+
+type FreeTimeInputDoc struct {
+	Date string `json:"date"`
+}
+
+type FreeTimeResponseDoc struct {
+	FreeSlots []TimeSlot `json:"freeSlots"`
+}
+
+type TelegramAuthDoc struct {
+	InitData string `json:"initData"`
+}
+
+type FriendRequestDoc struct {
+	Username string `json:"username"`
 }

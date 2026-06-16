@@ -1,15 +1,11 @@
 package model
 
 type User struct {
-	ID           int    `json:"id"`
-	Name         string `json:"name" binding:"required"`
-	Username     string `json:"username" binding:"required"`
-	Email        string `json:"email" binding:"required"`
-	PasswordHash string `json:"passwordHash" binding:"required"`
-	AvatarURL    string `json:"avatarURL"`
-	TelegramID   string `json:"telegramID"`
-	// Events       []Event       `json:"events"`
-	// OwnedGroups  []Group       `json:"ownedGroups"`
-	// GroupMembers []GroupMember `json:"groupMembers"`
-	// Friends      []Friend      `json:"friends"`
+	ID           int    `json:"id" db:"id"`
+	Name         string `json:"name" binding:"required" db:"name"`
+	Username     string `json:"username" binding:"required" db:"username"`
+	Email        string `json:"email" binding:"required" db:"email"`
+	PasswordHash string `json:"passwordHash" binding:"required" db:"password_hash"`
+	AvatarURL    string `json:"avatarURL" db:"avatar_url"`
+	TelegramID   *int64 `json:"telegramID,omitempty" db:"telegram_id"`
 }

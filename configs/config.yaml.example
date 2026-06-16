@@ -1,12 +1,18 @@
-# Copy example config
-# cp  config.yaml.example config.yaml
-# Then edit with your own settings
+# Copy to config.yaml and adjust for your environment
+# cp configs/config.yaml.example configs/config.yaml
 
+# Local development defaults
 port: "8000"
 
 db:
   username: "postgres"
   host: "localhost"
-  port: "22001"
-  dbname: "postgres"
+  port: "5432"
+  dbname: "druna_db"
   sslmode: "disable"
+
+# Docker profile (use configs/config.docker.yaml in compose instead):
+# port: "22000"
+# db.host: "db"
+# db.port: "5432"
+# db.dbname: "druna_db"

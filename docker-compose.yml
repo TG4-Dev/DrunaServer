@@ -14,18 +14,28 @@ services:
       - pgdata:/var/lib/postgresql/data
     networks:
       - druna-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d druna_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   app:
     build:
       context: .
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "22000:22000"
     environment:
       DB_PASSWORD: postgres
+      JWT_SECRET: changeme-dev-secret
+      BOT_TOKEN: ""
+      DATABASE_URL: postgres://postgres:postgres@db:5432/druna_db?sslmode=disable
+      CORS_ORIGINS: "*"
     volumes:
-      - ./configs:/root/configs
+      - ./configs/config.docker.yaml:/root/configs/config.yaml
     networks:
       - druna-net
 

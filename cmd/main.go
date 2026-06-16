@@ -20,7 +20,7 @@ import (
 // @description API server for Druna App
 
 //@host localhost:8000
-//@bBasePath /
+//@BasePath /
 
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
@@ -33,7 +33,11 @@ func main() {
 	}
 
 	if err := godotenv.Load(); err != nil {
-		logrus.Fatalf("Error loading dotenv vars: %s", err)
+		logrus.Warnf("No .env file loaded: %s", err)
+	}
+
+	if os.Getenv("JWT_SECRET") == "" {
+		logrus.Fatal("JWT_SECRET environment variable is required")
 	}
 
 	db, err := repository.NewPostgresDB(repository.Config{

@@ -3,6 +3,7 @@ package service
 import (
 	"druna_server/pkg/model"
 	"druna_server/pkg/repository"
+	"errors"
 )
 
 type FriendshipService struct {
@@ -18,13 +19,11 @@ func (s *FriendshipService) SendFriendRequest(userID int, username string) error
 	if err != nil {
 		return err
 	}
-
-	err = s.repo.CreateFriendRequest(userID, friendID)
-	if err != nil {
-		return err
+	if friendID == userID {
+		return errors.New("cannot send friend request to yourself")
 	}
 
-	return err
+	return s.repo.CreateFriendRequest(userID, friendID)
 }
 
 func (s *FriendshipService) AcceptFriendRequest(userID int, username string) error {
@@ -33,12 +32,7 @@ func (s *FriendshipService) AcceptFriendRequest(userID int, username string) err
 		return err
 	}
 
-	err = s.repo.AcceptFriendRequest(userID, friendID)
-	if err != nil {
-		return err
-	}
-
-	return err
+	return s.repo.AcceptFriendRequest(userID, friendID)
 }
 
 func (s *FriendshipService) RejectFriendRequest(userID int, username string) error {
@@ -47,32 +41,23 @@ func (s *FriendshipService) RejectFriendRequest(userID int, username string) err
 		return err
 	}
 
-	err = s.repo.RejectFriendRequest(userID, friendID)
-	if err != nil {
-		return err
-	}
-
-	return err
+	return s.repo.RejectFriendRequest(userID, friendID)
 }
 
 func (s *FriendshipService) FriendList(userID int) ([]model.FriendInfo, error) {
-	var friends []model.FriendInfo
-	friends, err := s.repo.GetFriendList(userID)
-	if err != nil {
-		return []model.FriendInfo{}, err
-	}
-
-	return friends, err
+	return s.repo.GetFriendList(userID)
 }
 
 func (s *FriendshipService) FriendRequestList(userID int) ([]model.FriendInfo, error) {
-	var friends []model.FriendInfo
-	friends, err := s.repo.GetFriendRequestList(userID)
-	if err != nil {
-		return []model.FriendInfo{}, err
-	}
+	return s.repo.GetFriendRequestList(userID)
+}
 
-	return friends, err
+func (s *FriendshipService) IncomingFriendRequests(userID int) ([]model.FriendInfo, error) {
+	return s.repo.GetIncomingFriendRequests(userID)
+}
+
+func (s *FriendshipService) OutgoingFriendRequests(userID int) ([]model.FriendInfo, error) {
+	return s.repo.GetOutgoingFriendRequests(userID)
 }
 
 func (s *FriendshipService) DeleteFriend(userID int, username string) error {
@@ -81,10 +66,5 @@ func (s *FriendshipService) DeleteFriend(userID int, username string) error {
 		return err
 	}
 
-	err = s.repo.DeleteFriend(userID, friendID)
-	if err != nil {
-		return err
-	}
-
-	return err
+	return s.repo.DeleteFriend(userID, friendID)
 }

@@ -22,7 +22,6 @@ func (r *FriendshipPostgres) ExistsByUsername(username string) (int, error) {
 
 	row := r.db.QueryRow(query, username)
 	if err := row.Scan(&id); err != nil {
-		fmt.Println(err)
 		return 0, err
 	}
 	return id, nil
@@ -87,22 +86,46 @@ func (r *FriendshipPostgres) GetFriendList(userID int) ([]model.FriendInfo, erro
 	return friends, nil
 }
 
-func (r *FriendshipPostgres) GetFriendRequestList(userID int) ([]model.FriendInfo, error) {
+func (r *FriendshipPostgres) GetIncomingFriendRequests(userID int) ([]model.FriendInfo, error) {
 	var friends []model.FriendInfo
-
 	query := `
-        SELECT u.id, u.name, u.username 
+        SELECT u.id, u.name, u.username
         FROM friends f
-        JOIN users u ON 
-            (f.friend_id = u.id AND f.user_id = $1 AND f.status = 'pending') OR
-            (f.user_id = u.id AND f.friend_id = $1 AND f.status = 'pending')`
+        JOIN users u ON f.user_id = u.id
+        WHERE f.friend_id = $1 AND f.status = 'pending'`
 
 	err := r.db.Select(&friends, query, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get friend list: %w", err)
+		return nil, fmt.Errorf("failed to get incoming friend requests: %w", err)
 	}
-
 	return friends, nil
+}
+
+func (r *FriendshipPostgres) GetOutgoingFriendRequests(userID int) ([]model.FriendInfo, error) {
+	var friends []model.FriendInfo
+	query := `
+        SELECT u.id, u.name, u.username
+        FROM friends f
+        JOIN users u ON f.friend_id = u.id
+        WHERE f.user_id = $1 AND f.status = 'pending'`
+
+	err := r.db.Select(&friends, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get outgoing friend requests: %w", err)
+	}
+	return friends, nil
+}
+
+func (r *FriendshipPostgres) GetFriendRequestList(userID int) ([]model.FriendInfo, error) {
+	incoming, err := r.GetIncomingFriendRequests(userID)
+	if err != nil {
+		return nil, err
+	}
+	outgoing, err := r.GetOutgoingFriendRequests(userID)
+	if err != nil {
+		return nil, err
+	}
+	return append(incoming, outgoing...), nil
 }
 
 func (r *FriendshipPostgres) DeleteFriend(userID int, friendID int) error {
