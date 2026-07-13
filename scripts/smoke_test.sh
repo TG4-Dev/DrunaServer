@@ -26,6 +26,27 @@ TOKENS=$(curl -sf -X POST "$BASE_URL/auth/sign-in" \
 TOKENS_DATA=$(extract_data <<<"$TOKENS")
 ACCESS=$(echo "$TOKENS_DATA" | python3 -c "import json,sys; print(json.load(sys.stdin)['accessToken'])")
 
+echo "==> Renew token"
+RENEW=$(curl -sf -X POST "$BASE_URL/auth/renew-token" \
+  -H "Content-Type: application/json" \
+  -d "{\"refreshToken\":\"$(echo "$TOKENS_DATA" | python3 -c "import json,sys; print(json.load(sys.stdin)['refreshToken'])")\"}")
+ACCESS=$(extract_data <<<"$RENEW" | python3 -c "import json,sys; print(json.load(sys.stdin)['accessToken'])")
+
+echo "==> Profile"
+curl -sf -X GET "$BASE_URL/api/v1/users/me" -H "Authorization: Bearer $ACCESS" >/dev/null
+
+echo "==> Create second user for friends"
+USERNAME2="smoke2_$(date +%s)"
+curl -sf -X POST "$BASE_URL/auth/sign-up" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"Smoke Two\",\"username\":\"$USERNAME2\",\"email\":\"$USERNAME2@test.local\",\"password\":\"$PASSWORD\"}" >/dev/null
+
+echo "==> Friend request"
+curl -sf -X POST "$BASE_URL/api/v1/friends/request" \
+  -H "Authorization: Bearer $ACCESS" \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"$USERNAME2\"}" >/dev/null
+
 echo "==> Create event"
 curl -sf -X POST "$BASE_URL/api/v1/events/" \
   -H "Authorization: Bearer $ACCESS" \

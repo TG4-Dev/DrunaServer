@@ -26,6 +26,7 @@ func (h *Handler) InitRoutes() *gin.Engine {
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(requestIDMiddleware())
+	router.Use(accessLogMiddleware())
 	router.Use(metricsMiddleware())
 	router.Use(corsMiddleware())
 
@@ -36,7 +37,9 @@ func (h *Handler) InitRoutes() *gin.Engine {
 		ping.GET("/", h.ping)
 	}
 
-	registerMetricsRoute(router)
+	if metricsEnabled() {
+		registerMetricsRoute(router)
+	}
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	auth := router.Group("/auth", authLimiter.Middleware())
@@ -57,6 +60,12 @@ func (h *Handler) InitRoutes() *gin.Engine {
 }
 
 func (h *Handler) registerProtectedRoutes(api *gin.RouterGroup) {
+	users := api.Group("/users")
+	{
+		users.GET("/me", h.getCurrentUser)
+		users.PATCH("/me", h.updateCurrentUser)
+	}
+
 	friends := api.Group("/friends")
 	{
 		friends.GET("/list", h.getFriendList)

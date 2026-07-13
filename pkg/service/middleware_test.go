@@ -6,8 +6,10 @@ import (
 	"encoding/hex"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func buildInitData(t *testing.T, botToken string, values url.Values) string {
@@ -38,7 +40,7 @@ func buildInitData(t *testing.T, botToken string, values url.Values) string {
 func TestParseInitDataValid(t *testing.T) {
 	botToken := "123456:ABC-DEF"
 	values := url.Values{}
-	values.Set("auth_date", "1710000000")
+	values.Set("auth_date", strconv.FormatInt(time.Now().Unix(), 10))
 	values.Set("user", `{"id":123,"first_name":"Test","username":"tester"}`)
 
 	initData := buildInitData(t, botToken, values)
@@ -62,5 +64,18 @@ func TestParseInitDataMissingHash(t *testing.T) {
 	_, err := parseInitData("user=%7B%7D", "token")
 	if err == nil {
 		t.Fatal("expected missing hash error")
+	}
+}
+
+func TestParseInitDataExpired(t *testing.T) {
+	botToken := "123456:ABC-DEF"
+	values := url.Values{}
+	values.Set("auth_date", strconv.FormatInt(time.Now().Add(-48*time.Hour).Unix(), 10))
+	values.Set("user", `{"id":123,"first_name":"Test","username":"tester"}`)
+
+	initData := buildInitData(t, botToken, values)
+	_, err := parseInitData(initData, botToken)
+	if err == nil {
+		t.Fatal("expected expired initData error")
 	}
 }

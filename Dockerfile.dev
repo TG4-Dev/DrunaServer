@@ -1,0 +1,10 @@
+FROM golang:1.25-alpine
+
+RUN apk add --no-cache git
+
+RUN go install github.com/air-verse/air@v1.65.3
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+WORKDIR /app

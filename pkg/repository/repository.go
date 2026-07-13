@@ -12,13 +12,20 @@ type Authorization interface {
 	CreateUser(user model.User) (int, error)
 	GetUserByUsername(username string) (model.User, error)
 	GetUserByTelegramID(telegramID int64) (model.User, error)
+	GetUserByID(userID int) (model.User, error)
+	UpdateUserProfile(userID int, name, avatarURL string) error
 	SearchUsers(prefix string) ([]model.FriendInfo, error)
 }
 
 type Token interface {
 	RevokeToken(jti string, expiresAt time.Time) error
 	IsTokenRevoked(jti string) (bool, error)
+	PurgeExpiredTokens() (int64, error)
 	Ping() error
+}
+
+type Notification interface {
+	Enqueue(userID int, notificationType string, payload string) error
 }
 
 type Event interface {
@@ -60,6 +67,7 @@ type Group interface {
 type Repository struct {
 	Authorization
 	Token
+	Notification
 	Event
 	Friendship
 	Group
@@ -69,6 +77,7 @@ func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{
 		Authorization: NewAuthPostgres(db),
 		Token:         NewTokenPostgres(db),
+		Notification:  NewNotificationPostgres(db),
 		Event:         NewEventPostgres(db),
 		Friendship:    NewFriendshipPostgres(db),
 		Group:         NewGroupPostgres(db),

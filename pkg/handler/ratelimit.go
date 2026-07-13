@@ -22,11 +22,13 @@ type RateLimiter struct {
 }
 
 func NewRateLimiter(requestsPerMinute int) *RateLimiter {
-	return &RateLimiter{
+	rl := &RateLimiter{
 		ips: make(map[string]*ipLimiter),
 		r:   rate.Every(time.Minute / time.Duration(requestsPerMinute)),
 		b:   requestsPerMinute,
 	}
+	go rl.cleanup()
+	return rl
 }
 
 func (rl *RateLimiter) getLimiter(ip string) *rate.Limiter {
@@ -43,7 +45,6 @@ func (rl *RateLimiter) getLimiter(ip string) *rate.Limiter {
 }
 
 func (rl *RateLimiter) Middleware() gin.HandlerFunc {
-	go rl.cleanup()
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
 		if !rl.getLimiter(ip).Allow() {

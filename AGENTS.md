@@ -35,6 +35,8 @@ go run cmd/main.go
 | `DB_PASSWORD` | Yes | PostgreSQL password |
 | `JWT_SECRET` | Yes | JWT HMAC signing key |
 | `BOT_TOKEN` | Telegram auth | Telegram bot token for initData HMAC |
+| `TELEGRAM_AUTH_TTL_HOURS` | No | Max Telegram initData age in hours (default `24`) |
+| `METRICS_ENABLED` | No | Expose `/metrics` (default `true`; disable in prod or protect via proxy) |
 | `CORS_ORIGINS` | No | Comma-separated allowed origins (default `*`) |
 | `DATABASE_URL` | Docker | Auto-migrations in `docker-entrypoint.sh` |
 | `TEST_DATABASE_URL` | Integration tests | Postgres DSN for `tests/integration` |
@@ -69,6 +71,24 @@ Do not return raw `gin.H{"error": ...}` in new code.
 ### Rate limiting
 
 `/auth/*` routes: 30 requests/minute per IP.
+
+## Swagger
+
+OpenAPI spec is generated from handler annotations (`@Summary`, `@Router`, etc.).
+
+```bash
+go install github.com/swaggo/swag/cmd/swag@latest
+swag init -g cmd/main.go
+```
+
+Output: `docs/docs.go`, `docs/swagger.json`, `docs/swagger.yaml`. UI: `GET /swagger/index.html`.
+
+Annotation conventions:
+
+- Use `/api/v1/...` paths (legacy `/api/...` is not duplicated in spec)
+- Protected routes: `@Security ApiKeyAuth` + `Authorization: Bearer <accessToken>`
+- Request/response types: `model.APIResponse` envelope; body types in `pkg/model/` (`structs_doc.go`, domain structs)
+- After adding or changing handlers: regenerate Swagger and commit `docs/*`
 
 ## Adding a new endpoint
 
@@ -107,14 +127,19 @@ SQL files in `migrations/`. Format: golang-migrate timestamp_name.{up,down}.sql.
 
 Recent additions:
 
+- `20250617000001` — initial schema (users, events, friends, groups)
 - `20250617000002` — unique constraint on `group_members(group_id, user_id)`
 - `20250617000003` — `revoked_tokens` table + performance indexes
+- `20250617000004` — `notification_outbox` table for companion bot hooks
+
+If a database was migrated with the old timestamp `20250619011729_migration_init`, update `schema_migrations` manually or recreate the dev DB before applying `20250617000001`.
 
 ## Observability
 
-- `GET /ping/` — health + DB ping (`503` if DB down)
-- `GET /metrics` — Prometheus (request count, duration)
+- `GET /ping/` — health + DB ping (`503` if DB down, `status: "degraded"`)
+- `GET /metrics` — Prometheus (when `METRICS_ENABLED=true`)
 - Request ID: `X-Request-ID` header (auto-generated if missing)
+- Access logs: JSON lines with `request_id`, method, path, status, duration
 
 ## Pre-PR checklist
 
@@ -128,4 +153,5 @@ Recent additions:
 ## Known limitations
 
 - bcrypt password hashing without legacy migration — old users must re-register
-- Swagger annotations incomplete on some newer handlers
+- Legacy `/api/*` route prefix mirrors `/api/v1/*` but is omitted from Swagger
+- `/swagger` and `/metrics` are public — protect via reverse proxy or env flags in production

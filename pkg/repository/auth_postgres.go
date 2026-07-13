@@ -19,10 +19,10 @@ func NewAuthPostgres(db *sqlx.DB) *AuthPostgres {
 func (r *AuthPostgres) CreateUser(user model.User) (int, error) {
 	var id int
 	query := fmt.Sprintf(
-		"INSERT INTO %s (name, username, email, password_hash, telegram_id) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+		"INSERT INTO %s (name, username, email, password_hash, telegram_id, avatar_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
 		usersTable,
 	)
-	row := r.db.QueryRow(query, user.Name, user.Username, user.Email, user.PasswordHash, user.TelegramID)
+	row := r.db.QueryRow(query, user.Name, user.Username, user.Email, user.PasswordHash, user.TelegramID, user.AvatarURL)
 
 	if err := row.Scan(&id); err != nil {
 		return 0, err
@@ -48,6 +48,25 @@ func (r *AuthPostgres) GetUserByTelegramID(telegramID int64) (model.User, error)
 	)
 	err := r.db.Get(&user, query, telegramID)
 	return user, err
+}
+
+func (r *AuthPostgres) GetUserByID(userID int) (model.User, error) {
+	var user model.User
+	query := fmt.Sprintf(
+		"SELECT id, name, username, email, password_hash, avatar_url, telegram_id FROM %s WHERE id=$1",
+		usersTable,
+	)
+	err := r.db.Get(&user, query, userID)
+	return user, err
+}
+
+func (r *AuthPostgres) UpdateUserProfile(userID int, name, avatarURL string) error {
+	query := fmt.Sprintf(
+		"UPDATE %s SET name = COALESCE(NULLIF($2, ''), name), avatar_url = COALESCE(NULLIF($3, ''), avatar_url) WHERE id = $1",
+		usersTable,
+	)
+	_, err := r.db.Exec(query, userID, name, avatarURL)
+	return err
 }
 
 func (r *AuthPostgres) SearchUsers(prefix string) ([]model.FriendInfo, error) {

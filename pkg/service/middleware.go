@@ -5,10 +5,28 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/url"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
+
+const defaultTelegramAuthTTL = 24 * time.Hour
+
+func telegramAuthTTL() time.Duration {
+	hoursStr := os.Getenv("TELEGRAM_AUTH_TTL_HOURS")
+	if hoursStr == "" {
+		return defaultTelegramAuthTTL
+	}
+	hours, err := strconv.Atoi(hoursStr)
+	if err != nil || hours <= 0 {
+		return defaultTelegramAuthTTL
+	}
+	return time.Duration(hours) * time.Hour
+}
 
 // Парсим telegram init data
 func parseInitData(initData, botToken string) (map[string]string, error) {
@@ -46,6 +64,19 @@ func parseInitData(initData, botToken string) (map[string]string, error) {
 
 	if expected != hash {
 		return nil, errors.New("invalid Telegram auth")
+	}
+
+	authDateStr := parsed.Get("auth_date")
+	if authDateStr == "" {
+		return nil, errors.New("missing auth_date")
+	}
+	authDateUnix, err := strconv.ParseInt(authDateStr, 10, 64)
+	if err != nil {
+		return nil, errors.New("invalid auth_date")
+	}
+	authDate := time.Unix(authDateUnix, 0)
+	if time.Since(authDate) > telegramAuthTTL() {
+		return nil, fmt.Errorf("initData expired (auth_date older than %s)", telegramAuthTTL())
 	}
 
 	// Build result

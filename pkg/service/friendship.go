@@ -9,11 +9,13 @@ import (
 )
 
 type FriendshipService struct {
-	repo repository.Friendship
+	repo         repository.Friendship
+	authRepo     repository.Authorization
+	notification *NotificationService
 }
 
-func NewFriendshipService(repo repository.Friendship) *FriendshipService {
-	return &FriendshipService{repo: repo}
+func NewFriendshipService(repo repository.Friendship, authRepo repository.Authorization, notification *NotificationService) *FriendshipService {
+	return &FriendshipService{repo: repo, authRepo: authRepo, notification: notification}
 }
 
 func (s *FriendshipService) SendFriendRequest(userID int, username string) error {
@@ -39,7 +41,15 @@ func (s *FriendshipService) SendFriendRequest(userID int, username string) error
 		return err
 	}
 
-	return s.repo.CreateFriendRequest(userID, friendID)
+	if err := s.repo.CreateFriendRequest(userID, friendID); err != nil {
+		return err
+	}
+	if s.notification != nil {
+		if user, err := s.authRepo.GetUserByID(userID); err == nil {
+			s.notification.EnqueueFriendRequest(friendID, user.Username)
+		}
+	}
+	return nil
 }
 
 func (s *FriendshipService) AcceptFriendRequest(userID int, username string) error {

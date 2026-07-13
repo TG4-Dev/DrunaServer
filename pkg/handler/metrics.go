@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"os"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -37,4 +38,16 @@ func metricsMiddleware() gin.HandlerFunc {
 
 func registerMetricsRoute(router *gin.Engine) {
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+}
+
+func metricsEnabled() bool {
+	value := os.Getenv("METRICS_ENABLED")
+	if value == "" {
+		return true
+	}
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		return true
+	}
+	return enabled
 }

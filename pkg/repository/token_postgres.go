@@ -39,3 +39,11 @@ func (r *TokenPostgres) IsTokenRevoked(jti string) (bool, error) {
 func (r *TokenPostgres) Ping() error {
 	return r.db.Ping()
 }
+
+func (r *TokenPostgres) PurgeExpiredTokens() (int64, error) {
+	result, err := r.db.Exec(`DELETE FROM revoked_tokens WHERE expires_at < NOW()`)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

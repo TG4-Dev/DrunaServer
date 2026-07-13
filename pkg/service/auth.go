@@ -17,11 +17,14 @@ import (
 )
 
 const (
-	accessTokenTTL  = 12 * time.Hour
-	refreshTokenTTL = 7 * 24 * time.Hour
-	tokenTypeAccess = "access"
+	accessTokenTTL   = 12 * time.Hour
+	refreshTokenTTL  = 7 * 24 * time.Hour
+	tokenTypeAccess  = "access"
 	tokenTypeRefresh = "refresh"
+	minPasswordLen   = 8
 )
+
+var ErrPasswordTooShort = errors.New("password must be at least 8 characters")
 
 type tokenClaims struct {
 	jwt.RegisteredClaims
@@ -35,6 +38,7 @@ type telegramUser struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Username  string `json:"username"`
+	PhotoURL  string `json:"photo_url"`
 }
 
 type AuthService struct {
@@ -65,6 +69,9 @@ func (s *AuthService) CreateUser(user model.User) (int, error) {
 	}
 	if password == "" {
 		return 0, errors.New("password is required")
+	}
+	if len(password) < minPasswordLen {
+		return 0, ErrPasswordTooShort
 	}
 	hash, err := hashPassword(password)
 	if err != nil {
@@ -128,11 +135,40 @@ func (s *AuthService) ParseToken(accessToken string) (int, string, error) {
 	return s.ParseAccessToken(accessToken)
 }
 
+func (s *AuthService) GetCurrentUser(userID int) (model.UserProfile, error) {
+	user, err := s.repo.GetUserByID(userID)
+	if err != nil {
+		return model.UserProfile{}, err
+	}
+	return userProfileFromUser(user), nil
+}
+
+func (s *AuthService) UpdateProfile(userID int, name, avatarURL string) (model.UserProfile, error) {
+	if err := s.repo.UpdateUserProfile(userID, name, avatarURL); err != nil {
+		return model.UserProfile{}, err
+	}
+	return s.GetCurrentUser(userID)
+}
+
+func userProfileFromUser(user model.User) model.UserProfile {
+	profile := model.UserProfile{
+		ID:        user.ID,
+		Name:      user.Name,
+		Username:  user.Username,
+		Email:     user.Email,
+		AvatarURL: user.AvatarURL,
+	}
+	if user.TelegramID != nil {
+		profile.TelegramID = user.TelegramID
+	}
+	return profile
+}
+
 func (s *AuthService) SearchUsers(prefix string) ([]model.FriendInfo, error) {
 	return s.repo.SearchUsers(prefix)
 }
 
-func (s *AuthService) TelegramLogin(telegramID int64, name, username string) (string, string, error) {
+func (s *AuthService) TelegramLogin(telegramID int64, name, username, avatarURL string) (string, string, error) {
 	user, err := s.repo.GetUserByTelegramID(telegramID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -155,6 +191,7 @@ func (s *AuthService) TelegramLogin(telegramID int64, name, username string) (st
 			Username:     telegramUsername,
 			PasswordHash: randomPassword,
 			Email:        fmt.Sprintf("%s@telegram.local", telegramUsername),
+			AvatarURL:    avatarURL,
 			TelegramID:   &tgID,
 		}
 
@@ -165,6 +202,9 @@ func (s *AuthService) TelegramLogin(telegramID int64, name, username string) (st
 
 		user = newUser
 		user.ID = id
+	} else if avatarURL != "" && user.AvatarURL == "" {
+		_ = s.repo.UpdateUserProfile(user.ID, "", avatarURL)
+		user.AvatarURL = avatarURL
 	}
 
 	return s.generateTokensForUser(user)
@@ -195,7 +235,7 @@ func (s *AuthService) LoginWithTelegramInitData(initData string) (string, string
 		name = name + " " + tgUser.LastName
 	}
 
-	return s.TelegramLogin(tgUser.ID, name, tgUser.Username)
+	return s.TelegramLogin(tgUser.ID, name, tgUser.Username, tgUser.PhotoURL)
 }
 
 func (s *AuthService) generateTokensForUser(user model.User) (string, string, error) {

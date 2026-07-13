@@ -12,8 +12,10 @@ type Authorization interface {
 	ParseAccessToken(token string) (int, string, error)
 	ParseToken(token string) (int, string, error)
 	RenewToken(refreshToken string) (string, string, error)
-	TelegramLogin(telegramID int64, name, username string) (string, string, error)
+	TelegramLogin(telegramID int64, name, username, avatarURL string) (string, string, error)
 	LoginWithTelegramInitData(initData string) (string, string, error)
+	GetCurrentUser(userID int) (model.UserProfile, error)
+	UpdateProfile(userID int, name, avatarURL string) (model.UserProfile, error)
 	SearchUsers(prefix string) ([]model.FriendInfo, error)
 }
 
@@ -72,11 +74,12 @@ type Service struct {
 }
 
 func NewService(repos *repository.Repository) *Service {
+	notifications := NewNotificationService(repos.Notification)
 	return &Service{
 		Authorization: NewAuthService(repos.Authorization, repos.Token),
 		Event:         NewEventService(repos.Event),
-		Friendship:    NewFriendshipService(repos.Friendship),
-		Group:         NewGroupService(repos.Group, repos.Friendship, repos.Event),
+		Friendship:    NewFriendshipService(repos.Friendship, repos.Authorization, notifications),
+		Group:         NewGroupService(repos.Group, repos.Friendship, repos.Event, notifications),
 		Health:        NewHealthService(repos.Token),
 	}
 }

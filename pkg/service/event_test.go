@@ -10,7 +10,7 @@ type mockEventRepo struct {
 	events []model.Event
 }
 
-func (m *mockEventRepo) CreateEvent(event model.Event) (int, error) { return 1, nil }
+func (m *mockEventRepo) CreateEvent(event model.Event) (int, error)      { return 1, nil }
 func (m *mockEventRepo) UpdateEvent(userID int, event model.Event) error { return nil }
 func (m *mockEventRepo) DeleteEvent(userID, eventID int) error           { return nil }
 func (m *mockEventRepo) HasOverlappingEvent(userID int, start, end time.Time, excludeID int) (bool, error) {
@@ -60,7 +60,7 @@ func TestIntersectTimeSlots(t *testing.T) {
 	if len(result) != 1 {
 		t.Fatalf("expected 1 intersection, got %d", len(result))
 	}
-	if !result[0].Start.Equal(day.Add(10*time.Hour)) {
+	if !result[0].Start.Equal(day.Add(10 * time.Hour)) {
 		t.Fatalf("unexpected intersection start")
 	}
 }

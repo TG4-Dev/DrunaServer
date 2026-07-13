@@ -6,6 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ping godoc
+// @Summary Health check
+// @Tags public
+// @Produce json
+// @Success 200 {object} model.APIResponse
+// @Failure 503 {object} model.APIResponse
+// @Router /ping/ [get]
 func (h *Handler) ping(c *gin.Context) {
 	status := "ok"
 	dbStatus := "ok"

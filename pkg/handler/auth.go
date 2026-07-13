@@ -2,12 +2,24 @@ package handler
 
 import (
 	"druna_server/pkg/model"
+	"druna_server/pkg/service"
+	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
+// signUp godoc
+// @Summary Register a new user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body model.User true "Sign up payload"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 500 {object} model.APIResponse
+// @Router /auth/sign-up [post]
 func (h *Handler) signUp(c *gin.Context) {
 	var input model.User
 	if err := c.BindJSON(&input); err != nil {
@@ -24,6 +36,10 @@ func (h *Handler) signUp(c *gin.Context) {
 
 	id, err := h.services.Authorization.CreateUser(input)
 	if err != nil {
+		if errors.Is(err, service.ErrPasswordTooShort) {
+			NewErrorResponse(c, http.StatusBadRequest, err.Error())
+			return
+		}
 		NewErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -48,6 +64,16 @@ func (in signInInput) password() string {
 	return in.PasswordHash
 }
 
+// signIn godoc
+// @Summary Sign in with username and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body model.SignInDoc true "Sign in payload"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /auth/sign-in [post]
 func (h *Handler) signIn(c *gin.Context) {
 	var input signInInput
 	if err := c.BindJSON(&input); err != nil {
@@ -71,6 +97,15 @@ func (h *Handler) signIn(c *gin.Context) {
 	})
 }
 
+// renewToken godoc
+// @Summary Rotate refresh token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body model.RenewTokenDoc false "Refresh token in body or Authorization header"
+// @Success 200 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /auth/renew-token [post]
 func (h *Handler) renewToken(c *gin.Context) {
 	var input renewTokenInput
 	_ = c.ShouldBindJSON(&input)
@@ -106,6 +141,16 @@ func (h *Handler) renewToken(c *gin.Context) {
 	})
 }
 
+// telegramAuth godoc
+// @Summary Authenticate via Telegram WebApp initData
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param input body model.TelegramAuthDoc true "Telegram initData"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /auth/telegram [post]
 func (h *Handler) telegramAuth(c *gin.Context) {
 	var input struct {
 		InitData string `json:"initData" binding:"required"`

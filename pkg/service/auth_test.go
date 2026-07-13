@@ -2,6 +2,7 @@ package service
 
 import (
 	"druna_server/pkg/model"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -29,6 +30,31 @@ func (m *mockAuthRepo) GetUserByTelegramID(telegramID int64) (model.User, error)
 	return model.User{}, os.ErrNotExist
 }
 
+func (m *mockAuthRepo) GetUserByID(userID int) (model.User, error) {
+	for _, user := range m.users {
+		if user.ID == userID {
+			return user, nil
+		}
+	}
+	return model.User{}, os.ErrNotExist
+}
+
+func (m *mockAuthRepo) UpdateUserProfile(userID int, name, avatarURL string) error {
+	for username, user := range m.users {
+		if user.ID == userID {
+			if name != "" {
+				user.Name = name
+			}
+			if avatarURL != "" {
+				user.AvatarURL = avatarURL
+			}
+			m.users[username] = user
+			return nil
+		}
+	}
+	return os.ErrNotExist
+}
+
 func (m *mockAuthRepo) SearchUsers(prefix string) ([]model.FriendInfo, error) {
 	return []model.FriendInfo{}, nil
 }
@@ -51,9 +77,24 @@ func (m *mockTokenRepo) IsTokenRevoked(jti string) (bool, error) {
 
 func (m *mockTokenRepo) Ping() error { return nil }
 
+func (m *mockTokenRepo) PurgeExpiredTokens() (int64, error) { return 0, nil }
+
 func TestMain(m *testing.M) {
 	os.Setenv("JWT_SECRET", "test-secret-key-for-unit-tests-only")
 	os.Exit(m.Run())
+}
+
+func TestCreateUserPasswordValidation(t *testing.T) {
+	svc := NewAuthService(&mockAuthRepo{users: map[string]model.User{}}, &mockTokenRepo{})
+	_, err := svc.CreateUser(model.User{
+		Name:     "Short",
+		Username: "short",
+		Email:    "short@test.local",
+		Password: "abc",
+	})
+	if !errors.Is(err, ErrPasswordTooShort) {
+		t.Fatalf("expected ErrPasswordTooShort, got %v", err)
+	}
 }
 
 func TestHashAndVerifyPassword(t *testing.T) {

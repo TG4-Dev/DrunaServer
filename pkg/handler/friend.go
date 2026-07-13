@@ -24,6 +24,15 @@ func (h *Handler) getUserIdFromToken(c *gin.Context) int {
 	return userID
 }
 
+// searchUsers godoc
+// @Summary Search users by username prefix
+// @Tags friends
+// @Produce json
+// @Security ApiKeyAuth
+// @Param username query string true "Username prefix"
+// @Success 200 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /api/v1/friends/search [get]
 func (h *Handler) searchUsers(c *gin.Context) {
 	userID := h.getUserIdFromToken(c)
 	if userID == 0 {
@@ -38,6 +47,14 @@ func (h *Handler) searchUsers(c *gin.Context) {
 	Success(c, http.StatusOK, gin.H{"users": users})
 }
 
+// getFriendList godoc
+// @Summary List accepted friends
+// @Tags friends
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /api/v1/friends/list [get]
 func (h *Handler) getFriendList(c *gin.Context) {
 	userID := h.getUserIdFromToken(c)
 	if userID == 0 {
@@ -51,6 +68,14 @@ func (h *Handler) getFriendList(c *gin.Context) {
 	Success(c, http.StatusOK, gin.H{"friends": friends})
 }
 
+// getFriendRequestList godoc
+// @Summary List all pending friend requests
+// @Tags friends
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /api/v1/friends/request-list [get]
 func (h *Handler) getFriendRequestList(c *gin.Context) {
 	userID := h.getUserIdFromToken(c)
 	if userID == 0 {
@@ -64,6 +89,14 @@ func (h *Handler) getFriendRequestList(c *gin.Context) {
 	Success(c, http.StatusOK, gin.H{"friends": friends})
 }
 
+// getIncomingFriendRequests godoc
+// @Summary List incoming friend requests
+// @Tags friends
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /api/v1/friends/requests/incoming [get]
 func (h *Handler) getIncomingFriendRequests(c *gin.Context) {
 	userID := h.getUserIdFromToken(c)
 	if userID == 0 {
@@ -77,6 +110,14 @@ func (h *Handler) getIncomingFriendRequests(c *gin.Context) {
 	Success(c, http.StatusOK, gin.H{"friends": friends})
 }
 
+// getOutgoingFriendRequests godoc
+// @Summary List outgoing friend requests
+// @Tags friends
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /api/v1/friends/requests/outgoing [get]
 func (h *Handler) getOutgoingFriendRequests(c *gin.Context) {
 	userID := h.getUserIdFromToken(c)
 	if userID == 0 {
@@ -90,6 +131,17 @@ func (h *Handler) getOutgoingFriendRequests(c *gin.Context) {
 	Success(c, http.StatusOK, gin.H{"friends": friends})
 }
 
+// sendFriendRequest godoc
+// @Summary Send friend request
+// @Tags friends
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param input body model.FriendRequestDoc true "Target username"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /api/v1/friends/request [post]
 func (h *Handler) sendFriendRequest(c *gin.Context) {
 	var input friendRequestInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -107,6 +159,17 @@ func (h *Handler) sendFriendRequest(c *gin.Context) {
 	Success(c, http.StatusOK, gin.H{"message": "friend request sent"})
 }
 
+// acceptFriendRequest godoc
+// @Summary Accept friend request
+// @Tags friends
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param input body model.FriendRequestDoc true "Requester username"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /api/v1/friends/accept [post]
 func (h *Handler) acceptFriendRequest(c *gin.Context) {
 	var input friendRequestInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -124,6 +187,17 @@ func (h *Handler) acceptFriendRequest(c *gin.Context) {
 	Success(c, http.StatusOK, gin.H{"message": "friend request accepted"})
 }
 
+// rejectFriendRequest godoc
+// @Summary Reject friend request
+// @Tags friends
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param input body model.FriendRequestDoc true "Requester username"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /api/v1/friends/reject [post]
 func (h *Handler) rejectFriendRequest(c *gin.Context) {
 	var input friendRequestInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -141,6 +215,17 @@ func (h *Handler) rejectFriendRequest(c *gin.Context) {
 	Success(c, http.StatusOK, gin.H{"message": "friend request rejected"})
 }
 
+// deleteFriend godoc
+// @Summary Remove friend
+// @Tags friends
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param input body model.FriendRequestDoc true "Friend username"
+// @Success 200 {object} model.APIResponse
+// @Failure 400 {object} model.APIResponse
+// @Failure 401 {object} model.APIResponse
+// @Router /api/v1/friends/ [delete]
 func (h *Handler) deleteFriend(c *gin.Context) {
 	var input friendRequestInput
 	if err := c.ShouldBindJSON(&input); err != nil {

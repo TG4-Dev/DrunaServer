@@ -1,11 +1,931 @@
 basePath: /
+definitions:
+  model.APIResponse:
+    properties:
+      data: {}
+      error:
+        $ref: '#/definitions/model.ErrorBody'
+    type: object
+  model.AddGroupMemberDoc:
+    properties:
+      username:
+        type: string
+    type: object
+  model.ConfirmGroupTimeDoc:
+    properties:
+      confirmedTime:
+        type: string
+    type: object
+  model.ErrorBody:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+  model.Event:
+    properties:
+      endTime:
+        type: string
+      eventID:
+        type: integer
+      startTime:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+      userID:
+        type: integer
+    required:
+    - endTime
+    - startTime
+    - title
+    type: object
+  model.FreeTimeInputDoc:
+    properties:
+      date:
+        type: string
+    type: object
+  model.FriendRequestDoc:
+    properties:
+      username:
+        type: string
+    type: object
+  model.Group:
+    properties:
+      confirmedTime:
+        type: string
+      groupID:
+        type: integer
+      name:
+        type: string
+      ownerID:
+        type: integer
+    required:
+    - name
+    type: object
+  model.GroupFreeTimeInputDoc:
+    properties:
+      date:
+        type: string
+    type: object
+  model.RenewTokenDoc:
+    properties:
+      refreshToken:
+        type: string
+    type: object
+  model.SignInDoc:
+    properties:
+      passwordHash:
+        type: string
+      username:
+        type: string
+    type: object
+  model.TelegramAuthDoc:
+    properties:
+      initData:
+        type: string
+    type: object
+  model.UpdateProfileInput:
+    properties:
+      avatarURL:
+        type: string
+      name:
+        type: string
+    type: object
+  model.User:
+    properties:
+      avatarURL:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      password:
+        type: string
+      passwordHash:
+        type: string
+      telegramID:
+        type: integer
+      username:
+        type: string
+    required:
+    - email
+    - name
+    - username
+    type: object
 host: localhost:8000
 info:
   contact: {}
   description: API server for Druna App
   title: Druna API
   version: "1.0"
-paths: {}
+paths:
+  /api/v1/events/:
+    get:
+      parameters:
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Page offset
+        in: query
+        name: offset
+        type: integer
+      - description: Event type filter
+        in: query
+        name: type
+        type: string
+      - description: RFC3339 lower bound
+        in: query
+        name: dateFrom
+        type: string
+      - description: RFC3339 upper bound
+        in: query
+        name: dateTo
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: List events for current user
+      tags:
+      - events
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Event payload
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.Event'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create event
+      tags:
+      - events
+  /api/v1/events/{id}:
+    delete:
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Delete event
+      tags:
+      - events
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Event payload
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.Event'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update event
+      tags:
+      - events
+  /api/v1/events/free-time:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Date YYYY-MM-DD
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.FreeTimeInputDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Compute personal free time slots for a day
+      tags:
+      - events
+  /api/v1/friends/:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: Friend username
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.FriendRequestDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Remove friend
+      tags:
+      - friends
+  /api/v1/friends/accept:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Requester username
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.FriendRequestDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Accept friend request
+      tags:
+      - friends
+  /api/v1/friends/list:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: List accepted friends
+      tags:
+      - friends
+  /api/v1/friends/reject:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Requester username
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.FriendRequestDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Reject friend request
+      tags:
+      - friends
+  /api/v1/friends/request:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Target username
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.FriendRequestDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Send friend request
+      tags:
+      - friends
+  /api/v1/friends/request-list:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: List all pending friend requests
+      tags:
+      - friends
+  /api/v1/friends/requests/incoming:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: List incoming friend requests
+      tags:
+      - friends
+  /api/v1/friends/requests/outgoing:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: List outgoing friend requests
+      tags:
+      - friends
+  /api/v1/friends/search:
+    get:
+      parameters:
+      - description: Username prefix
+        in: query
+        name: username
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Search users by username prefix
+      tags:
+      - friends
+  /api/v1/groups/{id}:
+    delete:
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Delete group (owner only)
+      tags:
+      - groups
+    get:
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get group details with members
+      tags:
+      - groups
+  /api/v1/groups/{id}/confirm:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Confirmed time
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.ConfirmGroupTimeDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Confirm proposed group meeting time
+      tags:
+      - groups
+  /api/v1/groups/{id}/free-time:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Date YYYY-MM-DD
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.GroupFreeTimeInputDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get intersection of members' free time slots for a day
+      tags:
+      - groups
+  /api/v1/groups/{id}/leave:
+    post:
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Leave group (non-owner members)
+      tags:
+      - groups
+  /api/v1/groups/{id}/members:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Member username
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.AddGroupMemberDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Add friend to group (owner only)
+      tags:
+      - groups
+  /api/v1/groups/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group payload
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.Group'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create group
+      tags:
+      - groups
+  /api/v1/groups/list:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: List groups for current user
+      tags:
+      - groups
+  /api/v1/users/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get current user profile
+      tags:
+      - users
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Profile fields
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdateProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update current user profile
+      tags:
+      - users
+  /auth/renew-token:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Refresh token in body or Authorization header
+        in: body
+        name: input
+        schema:
+          $ref: '#/definitions/model.RenewTokenDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      summary: Rotate refresh token
+      tags:
+      - auth
+  /auth/sign-in:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Sign in payload
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.SignInDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      summary: Sign in with username and password
+      tags:
+      - auth
+  /auth/sign-up:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Sign up payload
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      summary: Register a new user
+      tags:
+      - auth
+  /auth/telegram:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Telegram initData
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.TelegramAuthDoc'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      summary: Authenticate via Telegram WebApp initData
+      tags:
+      - auth
+  /ping/:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      summary: Health check
+      tags:
+      - public
 securityDefinitions:
   ApiKeyAuth:
     in: header

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"database/sql"
 	"druna_server/pkg/model"
 	"druna_server/pkg/repository"
 	"errors"
@@ -8,13 +9,14 @@ import (
 )
 
 type GroupService struct {
-	repo      repository.Group
-	friendRepo repository.Friendship
-	eventRepo repository.Event
+	repo         repository.Group
+	friendRepo   repository.Friendship
+	eventRepo    repository.Event
+	notification *NotificationService
 }
 
-func NewGroupService(repo repository.Group, friendRepo repository.Friendship, eventRepo repository.Event) *GroupService {
-	return &GroupService{repo: repo, friendRepo: friendRepo, eventRepo: eventRepo}
+func NewGroupService(repo repository.Group, friendRepo repository.Friendship, eventRepo repository.Event, notification *NotificationService) *GroupService {
+	return &GroupService{repo: repo, friendRepo: friendRepo, eventRepo: eventRepo, notification: notification}
 }
 
 func (s *GroupService) CreateGroup(input model.Group) (int, error) {
@@ -37,6 +39,10 @@ func (s *GroupService) AddGroupMember(groupID, ownerID int, username string) err
 	if err != nil {
 		return err
 	}
+	status, err := s.friendRepo.GetFriendshipStatus(ownerID, memberID)
+	if errors.Is(err, sql.ErrNoRows) || status != "accepted" {
+		return errors.New("can only add accepted friends to a group")
+	}
 	isMember, err := s.repo.IsGroupMember(groupID, memberID)
 	if err != nil {
 		return err
@@ -56,7 +62,16 @@ func (s *GroupService) LeaveGroup(groupID, userID int) error {
 }
 
 func (s *GroupService) ConfirmMemberTime(groupID, userID int, confirmedTime time.Time) error {
-	return s.repo.ConfirmMemberTime(groupID, userID, confirmedTime)
+	if err := s.repo.ConfirmMemberTime(groupID, userID, confirmedTime); err != nil {
+		return err
+	}
+	if s.notification != nil {
+		details, err := s.repo.GetGroupDetails(groupID, userID)
+		if err == nil && details.OwnerID != userID {
+			s.notification.EnqueueGroupConfirm(details.OwnerID, groupID)
+		}
+	}
+	return nil
 }
 
 func (s *GroupService) GetGroupFreeTime(groupID, userID int, date time.Time) ([]model.TimeSlot, error) {

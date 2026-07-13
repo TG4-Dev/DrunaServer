@@ -10,6 +10,15 @@ hook-install:
 dev-up:
 	docker compose -f docker-compose.dev.yml up
 
+dev-build:
+	docker compose -f docker-compose.dev.yml build
+
+dev-db:
+	docker compose -f docker-compose.dev.yml up db
+
+dev-local:
+	JWT_SECRET=changeme-dev-secret DB_PASSWORD=postgres go run ./cmd/main.go
+
 build:
 	$(DOCKER_COMPOSE) build
 

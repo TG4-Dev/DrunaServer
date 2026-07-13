@@ -15,7 +15,7 @@ Backend REST API for the Druna app: users, events, friends, and groups.
 
 ## Tech stack
 
-Go 1.24 · Gin · PostgreSQL · JWT · Swagger · Docker
+Go 1.25 · Gin · PostgreSQL · JWT · Swagger · Docker
 
 ## Quick start
 
@@ -36,6 +36,8 @@ Default port: `8000` (from `configs/config.yaml`).
 | `DB_PASSWORD` | Yes | PostgreSQL password |
 | `JWT_SECRET` | Yes | JWT signing key |
 | `BOT_TOKEN` | For Telegram | Telegram bot token |
+| `TELEGRAM_AUTH_TTL_HOURS` | No | Max initData age in hours (default `24`) |
+| `METRICS_ENABLED` | No | Expose `/metrics` endpoint (default `true`) |
 | `CORS_ORIGINS` | No | Comma-separated origins (default `*`) |
 | `DATABASE_URL` | Docker | Used by entrypoint for auto-migrations |
 | `TEST_DATABASE_URL` | Tests | DSN for integration tests |
@@ -82,6 +84,8 @@ curl -X POST http://localhost:8000/auth/renew-token \
 
 Only **access** tokens work on `/api/*`. Refresh tokens are rejected by the auth middleware.
 
+Token TTL: access **12 hours**, refresh **7 days**.
+
 ## Docker
 
 ```bash
@@ -123,12 +127,19 @@ All protected routes are available under **`/api/v1/...`** and legacy **`/api/..
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | /ping/ | Health check (`status`, `db`) |
-| GET | /metrics | Prometheus metrics |
+| GET | /metrics | Prometheus metrics (disable with `METRICS_ENABLED=false`) |
 | GET | /swagger/* | Swagger UI |
 | POST | /auth/sign-up | Register |
 | POST | /auth/sign-in | Login |
 | POST | /auth/renew-token | Refresh token rotation |
 | POST | /auth/telegram | Telegram WebApp login |
+
+### Users (auth required)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/v1/users/me | Current user profile |
+| PATCH | /api/v1/users/me | Update name / avatarURL |
 
 ### Events (auth required)
 
@@ -163,7 +174,7 @@ All protected routes are available under **`/api/v1/...`** and legacy **`/api/..
 | GET | /api/v1/groups/:id | Group details with members |
 | DELETE | /api/v1/groups/:id | Delete group (owner only) |
 | POST | /api/v1/groups/:id/leave | Leave group |
-| POST | /api/v1/groups/:id/members | Add member (owner only) |
+| POST | /api/v1/groups/:id/members | Add accepted friend (owner only) |
 | POST | /api/v1/groups/:id/confirm | Confirm proposed time |
 | POST | /api/v1/groups/:id/free-time | Intersection of members' free slots |
 

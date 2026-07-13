@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
@@ -57,6 +58,8 @@ func main() {
 	services := service.NewService(repos)
 	handlers := handler.NewHandler(services)
 
+	startTokenPurge(repos.Token)
+
 	srv := new(druna.Server)
 
 	go func() {
@@ -85,4 +88,21 @@ func initConfig() error {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	return viper.ReadInConfig()
+}
+
+func startTokenPurge(tokenRepo repository.Token) {
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			count, err := tokenRepo.PurgeExpiredTokens()
+			if err != nil {
+				logrus.WithError(err).Error("failed to purge expired revoked tokens")
+				continue
+			}
+			if count > 0 {
+				logrus.WithField("count", count).Info("purged expired revoked tokens")
+			}
+		}
+	}()
 }
