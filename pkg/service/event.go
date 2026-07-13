@@ -80,7 +80,7 @@ func (s *EventService) GetFreeTimeForUsers(userIDs []int, date time.Time) ([]mod
 	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	dayEnd := dayStart.Add(24 * time.Hour)
 
-	eventsByUser, err := s.repo.GetEventsForUsers(userIDs, dayStart, dayEnd)
+	eventsByUser, err := s.repo.GetBusyEventsForUsers(userIDs, dayStart, dayEnd)
 	if err != nil {
 		return nil, err
 	}

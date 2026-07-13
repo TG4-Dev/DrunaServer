@@ -47,6 +47,10 @@ type Group interface {
 	LeaveGroup(groupID, userID int) error
 	ConfirmMemberTime(groupID, userID int, confirmedTime time.Time) error
 	GetGroupFreeTime(groupID, userID int, date time.Time) ([]model.TimeSlot, error)
+	CreateGroupEvent(groupID, userID int, event model.Event) (int, error)
+	ListGroupEvents(groupID, userID int, filter model.EventFilter) (model.EventListResponse, error)
+	UpdateGroupEvent(groupID, eventID, userID int, event model.Event) error
+	DeleteGroupEvent(groupID, eventID, userID int) error
 }
 
 type Health interface {

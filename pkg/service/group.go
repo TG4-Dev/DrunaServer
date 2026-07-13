@@ -86,3 +86,127 @@ func (s *GroupService) GetGroupFreeTime(groupID, userID int, date time.Time) ([]
 	eventSvc := &EventService{repo: s.eventRepo}
 	return eventSvc.GetFreeTimeForUsers(memberIDs, date)
 }
+
+var (
+	ErrGroupAccessDenied   = errors.New("you are not a member of this group")
+	ErrGroupEventNotFound  = errors.New("group event not found")
+	ErrGroupEventForbidden = errors.New("only the event creator or group owner can modify this event")
+)
+
+func (s *GroupService) CreateGroupEvent(groupID, userID int, event model.Event) (int, error) {
+	isMember, err := s.repo.IsGroupMember(groupID, userID)
+	if err != nil {
+		return 0, err
+	}
+	if !isMember {
+		return 0, ErrGroupAccessDenied
+	}
+
+	if !event.EndTime.After(event.StartTime) {
+		return 0, errors.New("end time must be after start time")
+	}
+	overlap, err := s.eventRepo.HasOverlappingGroupEvent(groupID, event.StartTime, event.EndTime, 0)
+	if err != nil {
+		return 0, err
+	}
+	if overlap {
+		return 0, errors.New("event overlaps with an existing group event")
+	}
+
+	event.UserID = userID
+	event.GroupID = &groupID
+	eventID, err := s.eventRepo.CreateGroupEvent(event)
+	if err != nil {
+		return 0, err
+	}
+
+	if s.notification != nil {
+		memberIDs, err := s.repo.GetMemberUserIDs(groupID)
+		if err == nil {
+			for _, memberID := range memberIDs {
+				if memberID == userID {
+					continue
+				}
+				s.notification.EnqueueGroupEventCreated(memberID, groupID, eventID, event.Title, event.StartTime)
+			}
+		}
+	}
+
+	return eventID, nil
+}
+
+func (s *GroupService) ListGroupEvents(groupID, userID int, filter model.EventFilter) (model.EventListResponse, error) {
+	isMember, err := s.repo.IsGroupMember(groupID, userID)
+	if err != nil {
+		return model.EventListResponse{}, err
+	}
+	if !isMember {
+		return model.EventListResponse{}, ErrGroupAccessDenied
+	}
+
+	if filter.Limit <= 0 {
+		filter.Limit = 50
+	}
+	events, err := s.eventRepo.GetGroupEvents(groupID, filter)
+	if err != nil {
+		return model.EventListResponse{}, err
+	}
+	total, err := s.eventRepo.CountGroupEvents(groupID, filter)
+	if err != nil {
+		return model.EventListResponse{}, err
+	}
+	return model.EventListResponse{
+		Events: events,
+		Total:  total,
+		Limit:  filter.Limit,
+		Offset: filter.Offset,
+	}, nil
+}
+
+func (s *GroupService) canModifyGroupEvent(groupID, eventID, userID int) (model.Event, error) {
+	isMember, err := s.repo.IsGroupMember(groupID, userID)
+	if err != nil {
+		return model.Event{}, err
+	}
+	if !isMember {
+		return model.Event{}, ErrGroupAccessDenied
+	}
+	existing, err := s.eventRepo.GetGroupEventByID(groupID, eventID)
+	if err != nil {
+		return existing, ErrGroupEventNotFound
+	}
+	details, err := s.repo.GetGroupDetails(groupID, userID)
+	if err != nil {
+		return existing, err
+	}
+	if existing.UserID != userID && details.OwnerID != userID {
+		return existing, ErrGroupEventForbidden
+	}
+	return existing, nil
+}
+
+func (s *GroupService) UpdateGroupEvent(groupID, eventID, userID int, event model.Event) error {
+	if _, err := s.canModifyGroupEvent(groupID, eventID, userID); err != nil {
+		return err
+	}
+
+	if !event.EndTime.After(event.StartTime) {
+		return errors.New("end time must be after start time")
+	}
+	overlap, err := s.eventRepo.HasOverlappingGroupEvent(groupID, event.StartTime, event.EndTime, eventID)
+	if err != nil {
+		return err
+	}
+	if overlap {
+		return errors.New("event overlaps with an existing group event")
+	}
+
+	return s.eventRepo.UpdateGroupEvent(groupID, eventID, event)
+}
+
+func (s *GroupService) DeleteGroupEvent(groupID, eventID, userID int) error {
+	if _, err := s.canModifyGroupEvent(groupID, eventID, userID); err != nil {
+		return err
+	}
+	return s.eventRepo.DeleteGroupEvent(groupID, eventID)
+}

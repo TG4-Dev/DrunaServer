@@ -7,6 +7,7 @@ import (
 type Event struct {
 	ID        int       `json:"eventID" db:"id"`
 	UserID    int       `json:"userID" db:"user_id"`
+	GroupID   *int      `json:"groupID,omitempty" db:"group_id"`
 	StartTime time.Time `json:"startTime" binding:"required" db:"start_time"`
 	EndTime   time.Time `json:"endTime" binding:"required" db:"end_time"`
 	Title     string    `json:"title" binding:"required" db:"title"`

@@ -23,8 +23,25 @@ func (m *mockEventRepo) GetEventListFiltered(userID int, filter model.EventFilte
 func (m *mockEventRepo) CountEvents(userID int, filter model.EventFilter) (int, error) {
 	return len(m.events), nil
 }
-func (m *mockEventRepo) GetEventsForUsers(userIDs []int, dateFrom, dateTo time.Time) (map[int][]model.Event, error) {
+func (m *mockEventRepo) GetBusyEventsForUsers(userIDs []int, dateFrom, dateTo time.Time) (map[int][]model.Event, error) {
 	return map[int][]model.Event{}, nil
+}
+func (m *mockEventRepo) CreateGroupEvent(event model.Event) (int, error) { return 1, nil }
+func (m *mockEventRepo) UpdateGroupEvent(groupID, eventID int, event model.Event) error {
+	return nil
+}
+func (m *mockEventRepo) DeleteGroupEvent(groupID, eventID int) error { return nil }
+func (m *mockEventRepo) GetGroupEventByID(groupID, eventID int) (model.Event, error) {
+	return model.Event{}, nil
+}
+func (m *mockEventRepo) GetGroupEvents(groupID int, filter model.EventFilter) ([]model.Event, error) {
+	return m.events, nil
+}
+func (m *mockEventRepo) CountGroupEvents(groupID int, filter model.EventFilter) (int, error) {
+	return len(m.events), nil
+}
+func (m *mockEventRepo) HasOverlappingGroupEvent(groupID int, start, end time.Time, excludeID int) (bool, error) {
+	return false, nil
 }
 
 func TestGetFreeTimeNoEvents(t *testing.T) {

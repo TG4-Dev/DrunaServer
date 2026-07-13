@@ -98,6 +98,10 @@ func (h *Handler) registerProtectedRoutes(api *gin.RouterGroup) {
 		groups.POST("/:id/members", h.addGroupMember)
 		groups.POST("/:id/confirm", h.confirmGroupTime)
 		groups.POST("/:id/free-time", h.getGroupFreeTime)
+		groups.GET("/:id/events", h.getGroupEventList)
+		groups.POST("/:id/events", h.addGroupEvent)
+		groups.PATCH("/:id/events/:eventId", h.updateGroupEvent)
+		groups.DELETE("/:id/events/:eventId", h.deleteGroupEvent)
 	}
 }
 

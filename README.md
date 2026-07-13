@@ -8,7 +8,7 @@ Backend REST API for the Druna app: users, events, friends, and groups.
 - Telegram WebApp login
 - Events with overlap validation, filters, pagination, and free-time slots
 - Friends with search, incoming/outgoing requests, and reject blocking
-- Groups with members, time confirmation, group free-time, leave/delete
+- Groups with members, time confirmation, group free-time, group events, leave/delete
 - Unified JSON response envelope
 - Prometheus metrics and health check with DB probe
 - GitHub Actions CI (unit + Postgres integration tests)
@@ -176,7 +176,11 @@ All protected routes are available under **`/api/v1/...`** and legacy **`/api/..
 | POST | /api/v1/groups/:id/leave | Leave group |
 | POST | /api/v1/groups/:id/members | Add accepted friend (owner only) |
 | POST | /api/v1/groups/:id/confirm | Confirm proposed time |
-| POST | /api/v1/groups/:id/free-time | Intersection of members' free slots |
+| POST | /api/v1/groups/:id/free-time | Intersection of members' free slots (personal + group events) |
+| GET | /api/v1/groups/:id/events | List group events (`limit`, `offset`, `type`, `dateFrom`, `dateTo`) |
+| POST | /api/v1/groups/:id/events | Create group event (any member) |
+| PATCH | /api/v1/groups/:id/events/:eventId | Update group event (creator or owner) |
+| DELETE | /api/v1/groups/:id/events/:eventId | Delete group event (creator or owner) |
 
 ## Migrations
 

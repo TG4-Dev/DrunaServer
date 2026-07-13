@@ -74,6 +74,7 @@ func (r *EventPostgres) HasOverlappingEvent(userID int, start, end time.Time, ex
 	query := fmt.Sprintf(`
 		SELECT 1 FROM %s
 		WHERE user_id = $1
+		  AND group_id IS NULL
 		  AND id <> $2
 		  AND start_time < $4
 		  AND end_time > $3
@@ -94,7 +95,7 @@ func (r *EventPostgres) GetEventList(userID int) ([]model.Event, error) {
 }
 
 func (r *EventPostgres) GetEventListFiltered(userID int, filter model.EventFilter) ([]model.Event, error) {
-	query := fmt.Sprintf("SELECT id, user_id, title, start_time, end_time, type FROM %s WHERE user_id = $1", eventsTable)
+	query := fmt.Sprintf("SELECT id, user_id, group_id, title, start_time, end_time, type FROM %s WHERE user_id = $1 AND group_id IS NULL", eventsTable)
 	args := []interface{}{userID}
 	argIdx := 2
 
@@ -134,7 +135,7 @@ func (r *EventPostgres) GetEventListFiltered(userID int, filter model.EventFilte
 }
 
 func (r *EventPostgres) CountEvents(userID int, filter model.EventFilter) (int, error) {
-	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE user_id = $1", eventsTable)
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE user_id = $1 AND group_id IS NULL", eventsTable)
 	args := []interface{}{userID}
 	argIdx := 2
 
@@ -160,30 +161,209 @@ func (r *EventPostgres) CountEvents(userID int, filter model.EventFilter) (int, 
 	return count, nil
 }
 
-func (r *EventPostgres) GetEventsForUsers(userIDs []int, dateFrom, dateTo time.Time) (map[int][]model.Event, error) {
+// GetBusyEventsForUsers returns, for each requested user, the union of their
+// personal events (group_id IS NULL) and the events of every group they belong
+// to, restricted to the [dateFrom, dateTo] window. The result is keyed by the
+// member user id.
+func (r *EventPostgres) GetBusyEventsForUsers(userIDs []int, dateFrom, dateTo time.Time) (map[int][]model.Event, error) {
+	result := make(map[int][]model.Event)
 	if len(userIDs) == 0 {
-		return map[int][]model.Event{}, nil
+		return result, nil
 	}
 
-	query, args, err := sqlx.In(fmt.Sprintf(`
-		SELECT id, user_id, title, start_time, end_time, type FROM %s
-		WHERE user_id IN (?)
+	type busyRow struct {
+		MemberID int `db:"member_id"`
+		model.Event
+	}
+
+	personalQuery, personalArgs, err := sqlx.In(fmt.Sprintf(`
+		SELECT user_id AS member_id, id, user_id, group_id, title, start_time, end_time, type
+		FROM %s
+		WHERE group_id IS NULL
+		  AND user_id IN (?)
 		  AND end_time >= ?
-		  AND start_time <= ?
-		ORDER BY user_id, start_time`, eventsTable), userIDs, dateFrom, dateTo)
+		  AND start_time <= ?`, eventsTable), userIDs, dateFrom, dateTo)
 	if err != nil {
 		return nil, err
 	}
-	query = r.db.Rebind(query)
+	personalQuery = r.db.Rebind(personalQuery)
+
+	var personalRows []busyRow
+	if err := r.db.Select(&personalRows, personalQuery, personalArgs...); err != nil {
+		return nil, err
+	}
+	for _, row := range personalRows {
+		result[row.MemberID] = append(result[row.MemberID], row.Event)
+	}
+
+	groupQuery, groupArgs, err := sqlx.In(fmt.Sprintf(`
+		SELECT gm.user_id AS member_id, e.id, e.user_id, e.group_id, e.title, e.start_time, e.end_time, e.type
+		FROM %s e
+		JOIN group_members gm ON e.group_id = gm.group_id
+		WHERE gm.user_id IN (?)
+		  AND e.end_time >= ?
+		  AND e.start_time <= ?`, eventsTable), userIDs, dateFrom, dateTo)
+	if err != nil {
+		return nil, err
+	}
+	groupQuery = r.db.Rebind(groupQuery)
+
+	var groupRows []busyRow
+	if err := r.db.Select(&groupRows, groupQuery, groupArgs...); err != nil {
+		return nil, err
+	}
+	for _, row := range groupRows {
+		result[row.MemberID] = append(result[row.MemberID], row.Event)
+	}
+
+	return result, nil
+}
+
+func (r *EventPostgres) CreateGroupEvent(event model.Event) (int, error) {
+	var id int
+	query := fmt.Sprintf("INSERT INTO %s (user_id, group_id, start_time, end_time, title, type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id", eventsTable)
+
+	row := r.db.QueryRow(query,
+		event.UserID,
+		event.GroupID,
+		event.StartTime,
+		event.EndTime,
+		event.Title,
+		event.Type)
+	if err := row.Scan(&id); err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+func (r *EventPostgres) UpdateGroupEvent(groupID, eventID int, event model.Event) error {
+	query := fmt.Sprintf(`
+		UPDATE %s SET start_time = $1, end_time = $2, title = $3, type = $4
+		WHERE id = $5 AND group_id = $6`, eventsTable)
+	result, err := r.db.Exec(query, event.StartTime, event.EndTime, event.Title, event.Type, eventID, groupID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return errors.New("group event not found")
+	}
+	return nil
+}
+
+func (r *EventPostgres) DeleteGroupEvent(groupID, eventID int) error {
+	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1 AND group_id = $2", eventsTable)
+	result, err := r.db.Exec(query, eventID, groupID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return errors.New("group event not found")
+	}
+	return nil
+}
+
+func (r *EventPostgres) GetGroupEventByID(groupID, eventID int) (model.Event, error) {
+	var event model.Event
+	query := fmt.Sprintf("SELECT id, user_id, group_id, title, start_time, end_time, type FROM %s WHERE id = $1 AND group_id = $2", eventsTable)
+	if err := r.db.Get(&event, query, eventID, groupID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return event, errors.New("group event not found")
+		}
+		return event, err
+	}
+	return event, nil
+}
+
+func (r *EventPostgres) GetGroupEvents(groupID int, filter model.EventFilter) ([]model.Event, error) {
+	query := fmt.Sprintf("SELECT id, user_id, group_id, title, start_time, end_time, type FROM %s WHERE group_id = $1", eventsTable)
+	args := []interface{}{groupID}
+	argIdx := 2
+
+	if filter.DateFrom != nil {
+		query += fmt.Sprintf(" AND end_time >= $%d", argIdx)
+		args = append(args, *filter.DateFrom)
+		argIdx++
+	}
+	if filter.DateTo != nil {
+		query += fmt.Sprintf(" AND start_time <= $%d", argIdx)
+		args = append(args, *filter.DateTo)
+		argIdx++
+	}
+	if filter.Type != "" {
+		query += fmt.Sprintf(" AND type = $%d", argIdx)
+		args = append(args, filter.Type)
+		argIdx++
+	}
+
+	query += " ORDER BY start_time ASC"
+
+	if filter.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", argIdx)
+		args = append(args, filter.Limit)
+		argIdx++
+	}
+	if filter.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET $%d", argIdx)
+		args = append(args, filter.Offset)
+	}
 
 	var events []model.Event
 	if err := r.db.Select(&events, query, args...); err != nil {
 		return nil, err
 	}
+	return events, nil
+}
 
-	result := make(map[int][]model.Event)
-	for _, event := range events {
-		result[event.UserID] = append(result[event.UserID], event)
+func (r *EventPostgres) CountGroupEvents(groupID int, filter model.EventFilter) (int, error) {
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE group_id = $1", eventsTable)
+	args := []interface{}{groupID}
+	argIdx := 2
+
+	if filter.DateFrom != nil {
+		query += fmt.Sprintf(" AND end_time >= $%d", argIdx)
+		args = append(args, *filter.DateFrom)
+		argIdx++
 	}
-	return result, nil
+	if filter.DateTo != nil {
+		query += fmt.Sprintf(" AND start_time <= $%d", argIdx)
+		args = append(args, *filter.DateTo)
+		argIdx++
+	}
+	if filter.Type != "" {
+		query += fmt.Sprintf(" AND type = $%d", argIdx)
+		args = append(args, filter.Type)
+	}
+
+	var count int
+	if err := r.db.Get(&count, query, args...); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *EventPostgres) HasOverlappingGroupEvent(groupID int, start, end time.Time, excludeID int) (bool, error) {
+	query := fmt.Sprintf(`
+		SELECT 1 FROM %s
+		WHERE group_id = $1
+		  AND id <> $2
+		  AND start_time < $4
+		  AND end_time > $3
+		LIMIT 1`, eventsTable)
+	var exists int
+	err := r.db.Get(&exists, query, groupID, excludeID, start, end)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }

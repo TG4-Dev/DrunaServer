@@ -131,6 +131,7 @@ Recent additions:
 - `20250617000002` — unique constraint on `group_members(group_id, user_id)`
 - `20250617000003` — `revoked_tokens` table + performance indexes
 - `20250617000004` — `notification_outbox` table for companion bot hooks
+- `20250617000005` — nullable `events.group_id` (FK to `groups`) + partial index for group events
 
 If a database was migrated with the old timestamp `20250619011729_migration_init`, update `schema_migrations` manually or recreate the dev DB before applying `20250617000001`.
 

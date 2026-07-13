@@ -36,7 +36,15 @@ type Event interface {
 	GetEventList(userID int) ([]model.Event, error)
 	GetEventListFiltered(userID int, filter model.EventFilter) ([]model.Event, error)
 	CountEvents(userID int, filter model.EventFilter) (int, error)
-	GetEventsForUsers(userIDs []int, dateFrom, dateTo time.Time) (map[int][]model.Event, error)
+	GetBusyEventsForUsers(userIDs []int, dateFrom, dateTo time.Time) (map[int][]model.Event, error)
+
+	CreateGroupEvent(event model.Event) (int, error)
+	UpdateGroupEvent(groupID, eventID int, event model.Event) error
+	DeleteGroupEvent(groupID, eventID int) error
+	GetGroupEventByID(groupID, eventID int) (model.Event, error)
+	GetGroupEvents(groupID int, filter model.EventFilter) ([]model.Event, error)
+	CountGroupEvents(groupID int, filter model.EventFilter) (int, error)
+	HasOverlappingGroupEvent(groupID int, start, end time.Time, excludeID int) (bool, error)
 }
 
 type Friendship interface {

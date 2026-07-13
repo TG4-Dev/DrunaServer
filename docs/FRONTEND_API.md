@@ -253,6 +253,7 @@ WebApp.MainButton.show();
 | Groups | `GET /api/v1/groups/list`, `POST .../create` |
 | Group detail | `GET /api/v1/groups/:id` |
 | Group scheduling | `POST .../confirm`, `POST .../free-time` |
+| Group events | `GET` / `POST /api/v1/groups/:id/events`, `PATCH` / `DELETE .../:eventId` |
 
 No username/password forms needed unless you support browser fallback.
 
@@ -321,6 +322,7 @@ A separate small bot process can send messages via Telegram Bot API (`sendMessag
 
 - Incoming friend requests
 - Group time confirmed
+- Group event created (`group_event_created`)
 - Event reminders
 
 That bot is **not part of DrunaServer** today — Mini App handles UI; bot is for pushes only.
@@ -642,7 +644,39 @@ Prefix: `/api/v1/groups`. All routes require auth.
 | POST | `/:id/leave` | — | Not for owner |
 | DELETE | `/:id` | — | Owner only |
 
-**Group free-time** returns intersection of all members' free slots for the day.
+**Group free-time** returns intersection of all members' free slots for the day. Busy time for each member now combines their **personal events** and the **group events** of every group they belong to, so a group event blocks the corresponding slot.
+
+### Group events
+
+Prefix: `/api/v1/groups/:id/events`. All routes require the caller to be a **member** of the group (non-members get **403**). A group event is a shared event scoped to the group; it does **not** appear in the personal `GET /api/v1/events/` list of its creator.
+
+| Method | Path | Body | Notes |
+|--------|------|------|-------|
+| GET | `/:id/events` | — (query: `limit`, `offset`, `type`, `dateFrom`, `dateTo`) | List group events. `data` is the same envelope as personal events (`events`, `total`, `limit`, `offset`) |
+| POST | `/:id/events` | `{ "title", "startTime", "endTime", "type" }` | Any member creates; response `{ "eventId": N }` |
+| PATCH | `/:id/events/:eventId` | same body as create | Only the **creator** or the **group owner** |
+| DELETE | `/:id/events/:eventId` | — | Only the **creator** or the **group owner** |
+
+Event object (in list responses):
+
+```json
+{
+  "eventID": 12,
+  "userID": 3,
+  "groupID": 7,
+  "title": "Team sync",
+  "startTime": "2026-06-17T14:00:00Z",
+  "endTime": "2026-06-17T16:00:00Z",
+  "type": "meeting"
+}
+```
+
+Rules:
+
+- `startTime`/`endTime`/`title` are required; `endTime` must be after `startTime` (**400**).
+- A new/updated group event must not overlap another event **of the same group** (**400**).
+- Update/delete by a member who is neither creator nor owner returns **403**; unknown event returns **404**.
+- On create, the other group members receive a `group_event_created` notification in `notification_outbox`.
 
 ---
 
@@ -654,7 +688,7 @@ Prefix: `/api/v1/groups`. All routes require auth.
 | GET | `/metrics` | Prometheus (not JSON envelope); disable with `METRICS_ENABLED=false` |
 | GET | `/swagger/*` | Swagger UI — protect in production via reverse proxy |
 
-Friend request and group confirm events are enqueued in `notification_outbox` for a future companion Telegram bot.
+Friend request, group confirm, and group event created events are enqueued in `notification_outbox` for a future companion Telegram bot.
 
 ---
 

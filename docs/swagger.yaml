@@ -29,6 +29,8 @@ definitions:
         type: string
       eventID:
         type: integer
+      groupID:
+        type: integer
       startTime:
         type: string
       title:
@@ -596,6 +598,178 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Confirm proposed group meeting time
+      tags:
+      - groups
+  /api/v1/groups/{id}/events:
+    get:
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Page size
+        in: query
+        name: limit
+        type: integer
+      - description: Page offset
+        in: query
+        name: offset
+        type: integer
+      - description: Event type filter
+        in: query
+        name: type
+        type: string
+      - description: RFC3339 lower bound
+        in: query
+        name: dateFrom
+        type: string
+      - description: RFC3339 upper bound
+        in: query
+        name: dateTo
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: List events for a group
+      tags:
+      - groups
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Event payload
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.Event'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create a group event (any member)
+      tags:
+      - groups
+  /api/v1/groups/{id}/events/{eventId}:
+    delete:
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Event ID
+        in: path
+        name: eventId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Delete a group event (creator or group owner)
+      tags:
+      - groups
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Group ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Event ID
+        in: path
+        name: eventId
+        required: true
+        type: integer
+      - description: Event payload
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/model.Event'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/model.APIResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update a group event (creator or group owner)
       tags:
       - groups
   /api/v1/groups/{id}/free-time:

@@ -3,6 +3,7 @@ package service
 import (
 	"druna_server/pkg/repository"
 	"encoding/json"
+	"time"
 )
 
 type NotificationService struct {
@@ -25,4 +26,14 @@ func (s *NotificationService) EnqueueGroupConfirm(targetUserID int, groupID int)
 		"groupId": groupID,
 	})
 	_ = s.repo.Enqueue(targetUserID, "group_confirm", string(payload))
+}
+
+func (s *NotificationService) EnqueueGroupEventCreated(targetUserID, groupID, eventID int, title string, startTime time.Time) {
+	payload, _ := json.Marshal(map[string]interface{}{
+		"groupId":   groupID,
+		"eventId":   eventID,
+		"title":     title,
+		"startTime": startTime,
+	})
+	_ = s.repo.Enqueue(targetUserID, "group_event_created", string(payload))
 }
