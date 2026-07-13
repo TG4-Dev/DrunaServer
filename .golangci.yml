@@ -1,17 +1,39 @@
+version: "2"
 run:
-  timeout: 5m
   tests: true
-
 linters:
+  default: none
   enable:
     - errcheck
     - govet
     - ineffassign
     - staticcheck
     - unused
-
-issues:
-  exclude-rules:
-    - path: docs/
-      linters:
-        - all
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - path: docs/
+        linters:
+          - all
+      # QF1008 ("could remove embedded field from selector") is a stylistic
+      # quickfix suggestion; selecting via the embedded interface name is
+      # intentional for readability of the service facade.
+      - linters:
+          - staticcheck
+        text: "QF1008"
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

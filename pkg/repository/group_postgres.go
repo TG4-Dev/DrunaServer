@@ -23,7 +23,7 @@ func (r *GroupPostgres) CreateGroup(input model.Group) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var id int
 	query := fmt.Sprintf(
@@ -34,9 +34,7 @@ func (r *GroupPostgres) CreateGroup(input model.Group) (int, error) {
 		return 0, err
 	}
 
-	memberQuery := fmt.Sprintf(
-		"INSERT INTO group_members (group_id, user_id, confirmed_time) VALUES ($1, $2, $3)",
-	)
+	memberQuery := "INSERT INTO group_members (group_id, user_id, confirmed_time) VALUES ($1, $2, $3)"
 	if _, err := tx.Exec(memberQuery, id, input.OwnerID, time.Now()); err != nil {
 		return 0, err
 	}
