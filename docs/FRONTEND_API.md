@@ -1,349 +1,86 @@
-# Druna Frontend API Guide
+# Druna Mobile API Guide
 
-Contract for frontend / mobile / **Telegram Mini App** clients integrating with **DrunaServer**.
+Contract for **native mobile clients** (iOS / Android — React Native, Flutter, Swift, Kotlin) integrating with **DrunaServer**.
 
 Backend repo: [DrunaServer](https://github.com/TG4-Dev/DrunaServer)  
 Related docs: [README.md](../README.md) · [AGENTS.md](../AGENTS.md)
+
+> This guide is written for a standalone mobile app. There is no WebView, no Telegram Mini App SDK, and no browser origin involved. The app talks to the REST API directly over HTTPS and stores JWT tokens in the platform secure store.
 
 ---
 
 ## Table of contents
 
-1. [Telegram Mini App (start here)](#telegram-mini-app)
-2. [Base URLs](#base-urls)
-3. [Response envelope](#response-envelope)
-4. [Authentication](#authentication)
-5. [Profile](#profile)
-6. [Events](#events)
-7. [Friends](#friends)
-8. [Groups](#groups)
-9. [Public utility routes](#public-utility-routes)
-10. [Shared code: Web ↔ TMA ↔ Mobile](#shared-code-web--tma--mobile)
-11. [TypeScript client](#typescript-client)
-12. [Testing](#testing)
+1. [Quick start](#quick-start)
+2. [Architecture](#architecture)
+3. [Base URLs](#base-urls)
+4. [Response envelope](#response-envelope)
+5. [Headers](#headers)
+6. [Authentication](#authentication)
+7. [Token storage & session lifecycle](#token-storage--session-lifecycle)
+8. [Profile](#profile)
+9. [Events](#events)
+10. [Friends](#friends)
+11. [Groups](#groups)
+12. [Public utility routes](#public-utility-routes)
+13. [Client architecture](#client-architecture)
+14. [Example client (React Native / TypeScript)](#example-client-react-native--typescript)
+15. [Push notifications](#push-notifications)
+16. [Testing](#testing)
+17. [Changelog notes](#changelog-notes)
 
 ---
 
-## Telegram Mini App
+## Quick start
 
-This section contains everything needed to build the Druna UI as a **Telegram Mini App (TMA)**.
+1. Point the app at a reachable API base URL (see [Base URLs](#base-urls) — `localhost` will **not** work from a device/emulator).
+2. Register the user: `POST /auth/sign-up`, then `POST /auth/sign-in` to obtain `accessToken` + `refreshToken`.
+3. Store both tokens in the platform **secure store** (Keychain / Keystore).
+4. Call `/api/v1/*` routes with `Authorization: Bearer <accessToken>`.
+5. On `401`, call `POST /auth/renew-token` with the refresh token, save the new pair, and retry once.
+6. On refresh failure, clear tokens and send the user back to the sign-in screen.
 
-### Architecture
+Everything else (events, friends, groups, group events) is a plain authenticated JSON call.
 
-```
-User in Telegram
-    ↓ opens Mini App (WebView)
-React/Vue app (your frontend)
-    ↓ POST /auth/telegram { initData }
-DrunaServer → validates HMAC → JWT tokens
-    ↓ Authorization: Bearer <accessToken>
-DrunaServer /api/v1/* (events, friends, groups)
-```
+---
 
-The **bot** is optional infrastructure:
-
-- Menu Button / Web App URL → opens your Mini App
-- Push notifications, `/start`, deep links (future)
-
-The **Mini App** is a normal web app (HTML/JS) using Telegram WebApp SDK + Druna REST API.
-
-### What the backend does on Telegram login
-
-1. Receives raw `initData` string from the client
-2. Validates HMAC signature using server `BOT_TOKEN` (same token as your bot)
-3. Rejects initData older than `TELEGRAM_AUTH_TTL_HOURS` (default 24h) via `auth_date`
-4. Parses `user` JSON from initData (`id`, `first_name`, `username`, `photo_url`, …)
-4. Finds user by `telegram_id` in DB, or **auto-registers** a new account:
-   - `username`: `@username` from Telegram, or `tg_{telegram_id}` if no username
-   - `email`: `{username}@telegram.local`
-   - `name`: `first_name` + `last_name`
-5. Returns `accessToken` + `refreshToken` (same as password login)
-
-**No separate sign-up screen is required in TMA** — first open = register, next opens = login.
-
-### Prerequisites
-
-| Item | Who sets it |
-|------|-------------|
-| Telegram bot | Create via [@BotFather](https://t.me/BotFather) |
-| `BOT_TOKEN` | Server `.env` — **must match the bot** that opens the Mini App |
-| Mini App URL | BotFather → Bot Settings → Menu Button / Web App |
-| HTTPS | **Required in production** — Telegram opens WebView only on HTTPS URLs |
-
-Server without `BOT_TOKEN` returns:
-
-```json
-{
-  "data": null,
-  "error": { "message": "telegram auth failed: BOT_TOKEN is not configured", "code": 401 }
-}
-```
-
-### BotFather setup
-
-1. `/newbot` → get token → put in server `.env`:
-   ```
-   BOT_TOKEN=123456789:ABCdefGHI...
-   ```
-2. Bot Settings → **Menu Button** → Configure → enter your app URL:
-   ```
-   https://your-domain.com/tma/
-   ```
-3. (Optional) `/setdomain` if using Login Widget on external sites
-
-For **local development**, expose HTTPS via tunnel:
-
-```bash
-# example with ngrok
-ngrok http 5173
-# use https://xxxx.ngrok.io as Menu Button URL in BotFather
-```
-
-Point API base URL to your backend (see [Base URLs](#base-urls)).
-
-### Recommended npm packages
-
-```bash
-npm install @twa-dev/sdk
-# optional
-npm install @telegram-apps/sdk
-```
-
-Official docs: [Telegram Mini Apps](https://core.telegram.org/bots/webapps)
-
-### TMA bootstrap (React example)
-
-```typescript
-import WebApp from "@twa-dev/sdk";
-
-// Call once on app start
-WebApp.ready();
-WebApp.expand();
-
-// Apply Telegram theme to CSS variables
-document.documentElement.style.setProperty(
-  "--tg-theme-bg-color",
-  WebApp.themeParams.bg_color ?? "#ffffff"
-);
-document.documentElement.style.setProperty(
-  "--tg-theme-text-color",
-  WebApp.themeParams.text_color ?? "#000000"
-);
-```
-
-Use `WebApp.themeParams` for native look: `bg_color`, `text_color`, `button_color`, `hint_color`, etc.
-
-### Authentication flow for Mini App
-
-```typescript
-const API_BASE = import.meta.env.VITE_API_URL; // e.g. https://api.druna.app
-
-type Tokens = { accessToken: string; refreshToken: string };
-
-async function loginWithTelegram(): Promise<Tokens> {
-  const initData = WebApp.initData; // raw query string — DO NOT parse manually on client for auth
-
-  if (!initData) {
-    throw new Error("Open this app from Telegram, not in a regular browser");
-  }
-
-  const res = await fetch(`${API_BASE}/auth/telegram`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ initData }),
-  });
-
-  const body = await res.json();
-  if (body.error) throw new Error(body.error.message);
-
-  return body.data as Tokens;
-}
-```
-
-**Important:**
-
-- Send **`WebApp.initData`** as-is (query string format: `query_id=...&user=...&auth_date=...&hash=...`)
-- Never trust `WebApp.initDataUnsafe.user.id` alone — always authenticate via server
-- Do **not** implement HMAC validation on the client — server already does it
-
-### Token storage in Mini App
-
-| Storage | Pros | Cons |
-|---------|------|------|
-| `localStorage` | Simple | Cleared if WebView cache cleared |
-| `Telegram.WebApp.CloudStorage` | Syncs in Telegram cloud | Async API, size limits |
-| In-memory only | Safest from persistence | Re-auth on every cold start |
-
-Recommended: **CloudStorage for refreshToken**, in-memory for accessToken, re-login via `initData` on cold start (initData is reissued each session anyway).
-
-```typescript
-// CloudStorage (promisify)
-function cloudGet(key: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    WebApp.CloudStorage.getItem(key, (err, value) => {
-      resolve(err ? null : value ?? null);
-    });
-  });
-}
-```
-
-### Session lifecycle (recommended)
+## Architecture
 
 ```
-App mount
-  → WebApp.initData present?
-      YES → POST /auth/telegram → store tokens → load app
-      NO  → show "Open in Telegram" fallback (browser dev mode: use /auth/sign-in)
-
-API call → 401
-  → POST /auth/renew-token with refreshToken
-  → retry once
-  → still 401? → re-run /auth/telegram with fresh initData
+Mobile app (iOS / Android)
+    | 1. POST /auth/sign-in { username, password }
+    v
+DrunaServer  -->  validates credentials  -->  returns { accessToken, refreshToken }
+    ^
+    | 2. Authorization: Bearer <accessToken>
+    v
+DrunaServer /api/v1/*  (profile, events, friends, groups, group events)
 ```
 
-`initData` is available on every Mini App open — **re-authenticating via `/auth/telegram` is cheap** and avoids stale refresh issues.
-
-### API calls after login
-
-Same as web — all protected routes use **access token only**:
-
-```typescript
-const res = await fetch(`${API_BASE}/api/v1/events/`, {
-  headers: {
-    Authorization: `Bearer ${accessToken}`,
-    "Content-Type": "application/json",
-  },
-});
-const body = await res.json();
-if (body.error) throw new Error(body.error.message);
-const events = body.data;
-```
-
-Use **`/api/v1/`** prefix for all protected routes.
-
-### Telegram UI integration
-
-| SDK API | Use in Druna |
-|---------|--------------|
-| `WebApp.MainButton` | "Save event", "Confirm time", "Send request" |
-| `WebApp.BackButton` | Navigate back in multi-step forms |
-| `WebApp.HapticFeedback` | Success/error feedback |
-| `WebApp.showAlert()` | Error messages |
-| `WebApp.close()` | Exit after action complete |
-| `WebApp.openTelegramLink()` | Open friend's @username |
-
-```typescript
-WebApp.MainButton.setText("Create event");
-WebApp.MainButton.onClick(() => submitEvent());
-WebApp.MainButton.show();
-```
-
-### Screens for TMA MVP
-
-| Screen | API used |
-|--------|----------|
-| Splash / auto-login | `POST /auth/telegram` |
-| Profile | `GET /api/v1/users/me` |
-| My events (list) | `GET /api/v1/events/` |
-| Create / edit event | `POST` / `PATCH /api/v1/events/:id` |
-| Day free time | `POST /api/v1/events/free-time` |
-| Friends list | `GET /api/v1/friends/list` |
-| Friend requests | `GET .../requests/incoming`, `.../outgoing` |
-| Search & add friend | `GET .../search?username=`, `POST .../request` |
-| Groups | `GET /api/v1/groups/list`, `POST .../create` |
-| Group detail | `GET /api/v1/groups/:id` |
-| Group scheduling | `POST .../confirm`, `POST .../free-time` |
-| Group events | `GET` / `POST /api/v1/groups/:id/events`, `PATCH` / `DELETE .../:eventId` |
-
-No username/password forms needed unless you support browser fallback.
-
-### User identity in the app
-
-After login, JWT contains `user_id` and `username`. Fetch full profile via `GET /api/v1/users/me`. Telegram account maps to:
-
-| Field | Value |
-|-------|-------|
-| `telegram_id` | Stable Telegram user ID (DB) |
-| `username` | Telegram `@username` or `tg_{id}` |
-| `name` | Display name from Telegram profile |
-
-For friend search, users can search by Telegram `@username` if the user has one; otherwise by `tg_{id}` pattern.
-
-### CORS & networking
-
-Mini App runs in Telegram WebView — requests are cross-origin from your app domain to API domain.
-
-- Server default `CORS_ORIGINS=*` works for Bearer token auth
-- Set explicit origins in production if needed:
-  ```
-  CORS_ORIGINS=https://your-tma-domain.com
-  ```
-
-### Local dev checklist
-
-```bash
-# Terminal 1 — backend
-cp configs/config.yaml.example configs/config.yaml
-cp .env.example .env
-# set DB_PASSWORD, JWT_SECRET, BOT_TOKEN
-go run cmd/main.go
-
-# Terminal 2 — frontend (Vite example)
-VITE_API_URL=http://localhost:8000 npm run dev
-
-# Terminal 3 — HTTPS tunnel for Telegram
-ngrok http 5173
-# → set ngrok HTTPS URL in BotFather Menu Button
-# → set VITE_API_URL to reachable backend (ngrok or LAN IP if testing)
-```
-
-**Browser-only dev** (without Telegram): use `POST /auth/sign-in` with test user as fallback when `WebApp.initData` is empty.
-
-### Production checklist
-
-- [ ] Mini App served over **HTTPS**
-- [ ] `BOT_TOKEN` on server matches the bot opening the app
-- [ ] `VITE_API_URL` points to production API (HTTPS)
-- [ ] CORS configured if not using `*`
-- [ ] Token refresh / re-auth via initData on 401
-- [ ] Theme colors from `WebApp.themeParams`
-- [ ] Test on iOS and Android Telegram clients (WebView differs slightly)
-
-### Security notes
-
-- Server validates `initData` HMAC — client must not skip `/auth/telegram`
-- `initDataUnsafe` is for UI prefill only (name, photo), not for auth
-- Access token in memory; avoid logging tokens
-- Backend currently does **not** enforce `auth_date` TTL on initData — rely on fresh initData each session; do not cache initData long-term
-
-### Optional companion bot (notifications)
-
-A separate small bot process can send messages via Telegram Bot API (`sendMessage`) for:
-
-- Incoming friend requests
-- Group time confirmed
-- Group event created (`group_event_created`)
-- Event reminders
-
-That bot is **not part of DrunaServer** today — Mini App handles UI; bot is for pushes only.
+- **Transport:** HTTPS + JSON. No cookies, no sessions — auth is stateless JWT in the `Authorization` header.
+- **Auth model:** short-lived access token (12h) + rotating refresh token (7d).
+- **No CORS considerations:** native apps are not subject to browser CORS. The server's `CORS_ORIGINS` setting only affects web clients.
 
 ---
 
 ## Base URLs
 
-| Environment | API base URL | Typical TMA frontend URL |
-|-------------|--------------|--------------------------|
-| Local dev | `http://localhost:8000` | `http://localhost:5173` (browser) |
-| Docker API | `http://localhost:22000` | — |
-| Production | `https://api.yourdomain.com` | `https://app.yourdomain.com` |
+Native apps cannot reach `localhost` on the developer machine directly. Use the right host for your target:
 
-Configure in frontend:
+| Target | API base URL |
+|--------|--------------|
+| iOS Simulator | `http://localhost:8000` (simulator shares the host network) |
+| Android Emulator | `http://10.0.2.2:8000` (special alias to host `localhost`) |
+| Physical device (same LAN) | `http://<your-machine-LAN-IP>:8000` (e.g. `http://192.168.1.20:8000`) |
+| Docker API | `http://<host>:22000` |
+| Staging / Production | `https://api.yourdomain.com` |
 
-```env
-VITE_API_URL=http://localhost:8000
-```
+Recommendations:
 
-Swagger: `{API_BASE}/swagger/index.html`
+- Keep the base URL in build config / environment (e.g. `.env` + `react-native-config`, Xcode xcconfig, Gradle `buildConfigField`, Flutter `--dart-define`).
+- Use **HTTPS in production**. iOS App Transport Security and Android's default network security config block cleartext HTTP for release builds; only allow HTTP for local development.
+
+OpenAPI / Swagger UI for exploring the contract: `{API_BASE}/swagger/index.html`.
 
 ---
 
@@ -372,13 +109,7 @@ Every JSON response follows this shape.
 }
 ```
 
-**Parsing (fetch):**
-
-```typescript
-const body = await response.json();
-if (body.error) throw new Error(body.error.message);
-const payload = body.data;
-```
+Client parsing rule: if `error` is non-null, treat it as a failure and surface `error.message`; otherwise use `data`. The `code` mirrors the HTTP status.
 
 ---
 
@@ -388,7 +119,7 @@ const payload = body.data;
 |--------|------|
 | `Content-Type: application/json` | All POST/PATCH bodies |
 | `Authorization: Bearer <accessToken>` | All `/api/v1/*` routes |
-| `X-Request-ID` | Optional; server echoes generated ID |
+| `X-Request-ID` | Optional; server echoes it back (or generates one). Useful for correlating client logs with server logs / bug reports |
 
 ---
 
@@ -396,37 +127,16 @@ const payload = body.data;
 
 ### Token types
 
-| Token | Use |
-|-------|-----|
-| `accessToken` | All `/api/v1/*` requests |
-| `refreshToken` | Only `POST /auth/renew-token` |
+| Token | Use | TTL |
+|-------|-----|-----|
+| `accessToken` | All `/api/v1/*` requests | **12 hours** |
+| `refreshToken` | Only `POST /auth/renew-token` | **7 days** |
 
-The auth middleware **rejects refresh tokens** on API routes (401).
+- The auth middleware **rejects refresh tokens** on API routes (`401`).
+- Refresh tokens are **rotated**: after a successful renew, the old refresh token is revoked. Always persist the new pair and discard the old one.
+- `/auth/*` routes are rate limited to **30 requests/minute per IP**.
 
-Refresh tokens are **rotated**: after renew, the old refresh token is revoked. Always store the new pair.
-
-**Token TTL:** access **12 hours**, refresh **7 days**.
-
-### Telegram login (primary for Mini App)
-
-`POST /auth/telegram`
-
-```json
-{ "initData": "<WebApp.initData raw string>" }
-```
-
-**Response `data`:**
-
-```json
-{
-  "accessToken": "eyJ...",
-  "refreshToken": "eyJ..."
-}
-```
-
-Server env: `BOT_TOKEN` must match the bot linked to this Mini App.
-
-### Sign up (web fallback)
+### Sign up
 
 `POST /auth/sign-up`
 
@@ -443,7 +153,9 @@ Password must be at least **8 characters**.
 
 **Response `data`:** `{ "id": 1 }`
 
-### Sign in (web fallback / browser dev)
+Sign-up does not return tokens — follow it with a sign-in call (or do both silently during onboarding).
+
+### Sign in
 
 `POST /auth/sign-in`
 
@@ -454,7 +166,16 @@ Password must be at least **8 characters**.
 }
 ```
 
-Legacy field `passwordHash` is also accepted.
+**Response `data`:**
+
+```json
+{
+  "accessToken": "eyJ...",
+  "refreshToken": "eyJ..."
+}
+```
+
+(Legacy field `passwordHash` is still accepted in place of `password`, but new apps should send `password`.)
 
 ### Renew tokens
 
@@ -464,19 +185,56 @@ Legacy field `passwordHash` is also accepted.
 { "refreshToken": "eyJ..." }
 ```
 
-Alternative: `Authorization: Bearer <refreshToken>` header.
+Alternative: send the refresh token as `Authorization: Bearer <refreshToken>`.
 
-**Response `data`:** new `accessToken` + `refreshToken`.
+**Response `data`:** a new `accessToken` + `refreshToken` pair. Save both.
 
-### Recommended client flow (all platforms)
+### Recommended auth flow
 
 ```
-1. Obtain tokens (Telegram: /auth/telegram, Web: /auth/sign-in)
-2. API call with Authorization: Bearer <accessToken>
-3. On 401 → POST /auth/renew-token → retry once
-4. TMA: if renew fails → POST /auth/telegram again with fresh initData
-5. Web: if renew fails → redirect to login
+1. First launch  -> sign-up (optional) -> sign-in -> store { access, refresh } in secure store
+2. Each API call -> Authorization: Bearer <accessToken>
+3. On 401        -> POST /auth/renew-token -> store new pair -> retry the original request once
+4. Renew fails   -> clear tokens -> navigate to sign-in
 ```
+
+### Telegram login (optional)
+
+The backend also supports Telegram-based auth via `POST /auth/telegram` with a raw Telegram `initData` string. This is intended for a Telegram Mini App / WebView context where `initData` is provided by the Telegram client.
+
+For a **standalone native app** this is generally not used, because obtaining a valid signed `initData` outside Telegram's WebView is non-trivial. If you later add "Login with Telegram" to the mobile app (e.g. via the Telegram Login flow), the server contract is:
+
+`POST /auth/telegram`
+
+```json
+{ "initData": "query_id=...&user=...&auth_date=...&hash=..." }
+```
+
+- The server validates the HMAC signature using its `BOT_TOKEN`.
+- It rejects `initData` older than `TELEGRAM_AUTH_TTL_HOURS` (default **24h**) based on `auth_date`.
+- On success it auto-registers or logs in the user and returns the same `{ accessToken, refreshToken }` pair.
+
+Unless you specifically integrate Telegram login, **use `sign-up` / `sign-in` as the primary auth method.**
+
+---
+
+## Token storage & session lifecycle
+
+Never store tokens in plain files, `AsyncStorage`, or `UserDefaults`/`SharedPreferences` without encryption. Use the platform secure store:
+
+| Stack | Secure storage |
+|-------|----------------|
+| React Native | `react-native-keychain` or `expo-secure-store` |
+| Flutter | `flutter_secure_storage` |
+| iOS native | Keychain Services |
+| Android native | EncryptedSharedPreferences / Keystore |
+
+Guidance:
+
+- Persist **both** tokens in the secure store so the user stays logged in across cold starts.
+- Keep the access token in memory for the app session; read the refresh token from secure storage when you need to renew.
+- Wrap all API calls with a single interceptor that adds the `Authorization` header and handles the `401 -> renew -> retry` cycle in one place.
+- On explicit logout, delete both tokens from the secure store. (There is no server-side "logout" endpoint; refresh rotation naturally invalidates old refresh tokens once a new one is issued.)
 
 ---
 
@@ -514,13 +272,13 @@ Prefix: `/api/v1/users`. All routes require auth.
 }
 ```
 
-Both fields are optional; omitted fields are unchanged.
+Both fields are optional; omitted fields are unchanged. Image upload is out of scope — send an already-hosted `avatarURL`.
 
 ---
 
 ## Events
 
-All routes require auth. Prefix: `/api/v1/events`.
+All routes require auth. Prefix: `/api/v1/events`. These are the user's **personal** events (group events live under `/api/v1/groups/:id/events`).
 
 ### List events
 
@@ -571,7 +329,7 @@ Query params (all optional):
 
 **Response `data`:** `{ "eventId": 1 }`
 
-Validation errors (400): end before start, overlapping event.
+Validation errors (`400`): end before start, or overlapping with an existing personal event.
 
 ### Update event
 
@@ -625,7 +383,7 @@ Prefix: `/api/v1/friends`. All routes require auth.
 
 **FriendInfo:** `{ "id": 2, "name": "Bob", "username": "bob" }`
 
-Business rules (400): no self-request, no duplicate pending, no re-request after reject.
+Business rules (`400`): no self-request, no duplicate pending, no re-request after reject.
 
 ---
 
@@ -644,7 +402,7 @@ Prefix: `/api/v1/groups`. All routes require auth.
 | POST | `/:id/leave` | — | Not for owner |
 | DELETE | `/:id` | — | Owner only |
 
-**Group free-time** returns intersection of all members' free slots for the day. Busy time for each member now combines their **personal events** and the **group events** of every group they belong to, so a group event blocks the corresponding slot.
+**Group free-time** returns the intersection of all members' free slots for the day. Busy time for each member combines their **personal events** and the **group events** of every group they belong to, so a group event blocks the corresponding slot.
 
 ### Group events
 
@@ -676,7 +434,7 @@ Rules:
 - `startTime`/`endTime`/`title` are required; `endTime` must be after `startTime` (**400**).
 - A new/updated group event must not overlap another event **of the same group** (**400**).
 - Update/delete by a member who is neither creator nor owner returns **403**; unknown event returns **404**.
-- On create, the other group members receive a `group_event_created` notification in `notification_outbox`.
+- On create, the other group members get a `group_event_created` entry in the server's notification outbox (see [Push notifications](#push-notifications)).
 
 ---
 
@@ -685,51 +443,50 @@ Rules:
 | Method | Path | Response |
 |--------|------|----------|
 | GET | `/ping/` | `{ "data": { "status": "ok", "db": "ok" } }` — on DB failure: HTTP **503**, `"status": "degraded"`, `"db": "error"` |
-| GET | `/metrics` | Prometheus (not JSON envelope); disable with `METRICS_ENABLED=false` |
+| GET | `/metrics` | Prometheus (not JSON envelope); disabled with `METRICS_ENABLED=false` |
 | GET | `/swagger/*` | Swagger UI — protect in production via reverse proxy |
 
-Friend request, group confirm, and group event created events are enqueued in `notification_outbox` for a future companion Telegram bot.
+Use `GET /ping/` for a lightweight connectivity/health check (e.g. a startup reachability probe or an offline banner).
 
 ---
 
-## Shared code: Web ↔ TMA ↔ Mobile
+## Client architecture
 
-Extract into shared packages (monorepo):
+Recommended layering for a mobile app (framework-agnostic):
 
 ```
-packages/
-  api/       # fetch client, endpoints, 401 refresh interceptor
-  types/     # ApiResponse, Event, Friend, Group, Tokens
-  core/      # hooks: useEvents, useFriends, useGroups
-  auth/      # AuthProvider interface + TelegramAuthProvider + WebAuthProvider
-apps/
-  web/       # Vite + React
-  tma/       # same React, @twa-dev/sdk entry, Telegram theme
-  mobile/    # Expo/RN, reuses api + types + core
+app/
+  api/        # HTTP client: base URL, auth header, 401 -> renew -> retry interceptor
+  auth/       # sign-in/up, token secure storage, session state
+  models/     # ApiResponse<T>, Event, FriendInfo, Group, GroupDetails, Tokens
+  features/   # calendar (events), friends, groups, group events
+  ui/         # native screens & navigation
 ```
 
-| Layer | Web | TMA | Mobile |
-|-------|-----|-----|--------|
-| `packages/api` | ✅ | ✅ | ✅ |
-| `packages/types` | ✅ | ✅ | ✅ |
-| `packages/core` | ✅ | ✅ | ✅ |
-| UI components | web | TMA-themed web | native |
-| Login | `/auth/sign-in` | `/auth/telegram` | sign-in or OAuth later |
+Screen-to-endpoint map for an MVP:
 
-TMA and web can be **the same React codebase** with two entry points:
+| Screen | API used |
+|--------|----------|
+| Onboarding / sign-in | `POST /auth/sign-up`, `POST /auth/sign-in` |
+| Profile | `GET` / `PATCH /api/v1/users/me` |
+| My calendar (list) | `GET /api/v1/events/` |
+| Create / edit event | `POST` / `PATCH /api/v1/events/:id`, `DELETE /api/v1/events/:id` |
+| Day free time | `POST /api/v1/events/free-time` |
+| Friends list | `GET /api/v1/friends/list` |
+| Friend requests | `GET .../requests/incoming`, `.../outgoing` |
+| Search & add friend | `GET .../search?username=`, `POST .../request` |
+| Groups list / create | `GET /api/v1/groups/list`, `POST .../create` |
+| Group detail | `GET /api/v1/groups/:id` |
+| Group scheduling | `POST .../confirm`, `POST .../free-time` |
+| Group events | `GET` / `POST /api/v1/groups/:id/events`, `PATCH` / `DELETE .../:eventId` |
 
-```typescript
-// main-tma.tsx
-if (WebApp.initData) await telegramAuthProvider.login();
-else showBrowserFallback();
-
-// main-web.tsx
-await webAuthProvider.login(username, password);
-```
+If you also build a web client, extract `api` / `models` / `auth` into shared packages; only the `ui` layer needs to differ (native vs web).
 
 ---
 
-## TypeScript client
+## Example client (React Native / TypeScript)
+
+The example uses `fetch` (available in React Native) plus a secure-storage abstraction. Swap the storage calls for `react-native-keychain`, `expo-secure-store`, or the native equivalent. The same contract applies to Flutter/Swift/Kotlin — only the syntax differs.
 
 ```typescript
 type ApiResponse<T> = {
@@ -739,34 +496,111 @@ type ApiResponse<T> = {
 
 type Tokens = { accessToken: string; refreshToken: string };
 
+// Replace with expo-secure-store / react-native-keychain
+interface SecureStore {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+  remove(key: string): Promise<void>;
+}
+
 class DrunaClient {
+  private accessToken: string | null = null;
+
   constructor(
     private baseUrl: string,
-    private getAccessToken: () => string | null,
-    private onTokensUpdated?: (t: Tokens) => void
+    private store: SecureStore
   ) {}
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const token = this.getAccessToken();
+  // --- auth ---
+
+  async signIn(username: string, password: string): Promise<void> {
+    const tokens = await this.raw<Tokens>("/auth/sign-in", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+    await this.persist(tokens);
+  }
+
+  async signUp(input: {
+    name: string;
+    username: string;
+    email: string;
+    password: string;
+  }): Promise<void> {
+    await this.raw("/auth/sign-up", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  }
+
+  async logout(): Promise<void> {
+    this.accessToken = null;
+    await this.store.remove("accessToken");
+    await this.store.remove("refreshToken");
+  }
+
+  private async persist(tokens: Tokens): Promise<void> {
+    this.accessToken = tokens.accessToken;
+    await this.store.set("accessToken", tokens.accessToken);
+    await this.store.set("refreshToken", tokens.refreshToken);
+  }
+
+  private async renew(): Promise<boolean> {
+    const refreshToken = await this.store.get("refreshToken");
+    if (!refreshToken) return false;
+    try {
+      const tokens = await this.raw<Tokens>("/auth/renew-token", {
+        method: "POST",
+        body: JSON.stringify({ refreshToken }),
+      });
+      await this.persist(tokens);
+      return true;
+    } catch {
+      await this.logout();
+      return false;
+    }
+  }
+
+  // --- low-level request without auth retry ---
+
+  private async raw<T>(path: string, init: RequestInit = {}): Promise<T> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...init,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...init.headers,
-      },
+      headers: { "Content-Type": "application/json", ...init.headers },
     });
     const body: ApiResponse<T> = await res.json();
     if (body.error) throw new Error(body.error.message);
     return body.data as T;
   }
 
-  authTelegram(initData: string) {
-    return this.request<Tokens>("/auth/telegram", {
-      method: "POST",
-      body: JSON.stringify({ initData }),
-    });
+  // --- authenticated request with 401 -> renew -> retry ---
+
+  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    if (!this.accessToken) {
+      this.accessToken = await this.store.get("accessToken");
+    }
+    const call = async (): Promise<Response> =>
+      fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        headers: {
+          "Content-Type": "application/json",
+          ...(this.accessToken
+            ? { Authorization: `Bearer ${this.accessToken}` }
+            : {}),
+          ...init.headers,
+        },
+      });
+
+    let res = await call();
+    if (res.status === 401 && (await this.renew())) {
+      res = await call();
+    }
+    const body: ApiResponse<T> = await res.json();
+    if (body.error) throw new Error(body.error.message);
+    return body.data as T;
   }
+
+  // --- example domain calls ---
 
   getEvents(params?: Record<string, string>) {
     const q = params ? "?" + new URLSearchParams(params) : "";
@@ -786,45 +620,87 @@ class DrunaClient {
       body: JSON.stringify({ date }),
     });
   }
+
+  listGroupEvents(groupId: number, params?: Record<string, string>) {
+    const q = params ? "?" + new URLSearchParams(params) : "";
+    return this.request(`/api/v1/groups/${groupId}/events${q}`);
+  }
+
+  createGroupEvent(groupId: number, event: object) {
+    return this.request(`/api/v1/groups/${groupId}/events`, {
+      method: "POST",
+      body: JSON.stringify(event),
+    });
+  }
 }
 ```
 
 ---
 
+## Push notifications
+
+The server records notification-worthy events in a `notification_outbox` table:
+
+- `friend_request` — someone sent a friend request
+- `group_confirm` — a member confirmed a group time
+- `group_event_created` — a group event was created (payload: `groupId`, `eventId`, `title`, `startTime`)
+
+There is **no push delivery built into DrunaServer today** — the outbox is a hook for a future delivery worker (e.g. a companion service pushing via APNs/FCM or Telegram). Until that exists, the mobile app should surface these by **polling** the relevant list endpoints when it foregrounds or on pull-to-refresh:
+
+- Incoming friend requests: `GET /api/v1/friends/requests/incoming`
+- Group state: `GET /api/v1/groups/:id`
+- Group events: `GET /api/v1/groups/:id/events`
+
+When a push pipeline is added later, the app will register its APNs/FCM device token via a (future) endpoint; that is not part of the current contract.
+
+---
+
 ## Testing
 
-### Backend
+### Run the backend locally
 
 ```bash
 cp configs/config.yaml.example configs/config.yaml
-cp .env.example .env   # DB_PASSWORD, JWT_SECRET, BOT_TOKEN
+cp .env.example .env   # set DB_PASSWORD, JWT_SECRET (BOT_TOKEN only if testing Telegram login)
 go run cmd/main.go
 ```
 
-### Smoke test (web auth path)
+### Smoke test the auth + API path
 
 ```bash
 make smoke
-# BASE_URL=http://localhost:8000 make smoke
+# or: BASE_URL=http://localhost:8000 make smoke
 ```
 
-### TMA manual test
+### Manual test from a device/emulator
 
-1. Start backend + frontend with HTTPS tunnel
-2. Set Menu Button URL in BotFather
-3. Open bot → tap Menu → Mini App loads
-4. Verify auto-login and `GET /api/v1/events/`
+1. Start the backend and note the reachable base URL for your target (see [Base URLs](#base-urls)).
+2. In the app, sign up then sign in; confirm tokens are stored in the secure store.
+3. Verify `GET /api/v1/users/me` and `GET /api/v1/events/` return `200`.
+4. Kill and relaunch the app — it should restore the session from stored tokens.
+5. Wait past access-token expiry (or clear the in-memory token) and confirm the `401 -> renew -> retry` path works transparently.
 
-### Browser fallback (no Telegram)
+### Quick manual request (curl)
 
-Open app in Chrome → use sign-in form hitting `POST /auth/sign-in` when `WebApp.initData` is empty.
+```bash
+# sign in
+curl -s -X POST http://localhost:8000/auth/sign-in \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"alice","password":"secret123"}'
+
+# authenticated call
+curl -s http://localhost:8000/api/v1/events/ \
+  -H 'Authorization: Bearer <accessToken>'
+```
 
 ---
 
 ## Changelog notes
 
-- All responses: `{ data, error }` envelope
-- Use `/api/v1/` prefix
-- TMA auth: `POST /auth/telegram` with raw `WebApp.initData`
-- Access vs refresh tokens — only access on API routes
-- Refresh rotation — save new tokens after every renew
+- All responses use the `{ data, error }` envelope.
+- Use the `/api/v1/` prefix for every protected route.
+- Primary mobile auth is `POST /auth/sign-up` + `POST /auth/sign-in`; `POST /auth/telegram` is optional (Telegram integration only).
+- Access vs refresh tokens — only the access token is valid on API routes.
+- Refresh rotation — always save the new token pair after every renew.
+- Store tokens in the platform secure store (Keychain / Keystore), never in plaintext.
+- Group events live under `/api/v1/groups/:id/events` and are member-scoped.
